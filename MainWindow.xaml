@@ -318,6 +318,21 @@
                                 </StackPanel>
                             </RadioButton>
                             </StackPanel>
+                            <ToggleButton x:Name="GrpDiag" Style="{StaticResource NavGroup}" Content="RESET DIAGNÓSTICO"/>
+                            <StackPanel x:Name="GrpDiagItems" Margin="10,0,0,4" Visibility="{Binding IsChecked, ElementName=GrpDiag, Converter={StaticResource BoolVis}}">
+                                <RadioButton x:Name="NavEvents" Style="{StaticResource NavItem}" Tag="PageEvents" Checked="Nav_Checked">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE9D9;" FontFamily="{StaticResource Icons}" FontSize="14" Width="28" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Linha do tempo" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </RadioButton>
+                                <RadioButton x:Name="NavBsod" Style="{StaticResource NavItem}" Tag="PageBsod" Checked="Nav_Checked">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource Icons}" FontSize="14" Width="28" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Telas azuis e falhas" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </RadioButton>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
                 </DockPanel>
@@ -2899,6 +2914,268 @@
                         </DockPanel>
                     </Border>
                 </Grid>
+
+                <!-- ===== DIAGNÓSTICO: LINHA DO TEMPO ===== -->
+                <ScrollViewer x:Name="PageEvents" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30,36,30">
+                        <Grid Margin="0,0,0,20">
+                            <StackPanel Margin="0,0,200,0">
+                                <TextBlock Text="LINHA DO TEMPO" Style="{StaticResource H1}"/>
+                                <TextBlock x:Name="EventsStatus" Text="Eventos do Windows traduzidos em linguagem clara e direta" Style="{StaticResource Sub}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <Button x:Name="BtnEventsRefresh" Style="{StaticResource PrimaryButton}" Content="ATUALIZAR" Padding="20,9"
+                                    HorizontalAlignment="Right" VerticalAlignment="Top" Click="BtnEventsRefresh_Click"/>
+                        </Grid>
+
+                        <!-- Barra de Ferramentas: Busca + Filtros -->
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,0,16" Padding="16,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Caixa de Busca com Ícone de Lupa -->
+                                <Grid Grid.Column="0" Margin="0,0,16,0">
+                                    <TextBox x:Name="TxtEventSearch" Tag="Filtrar por nome, aplicativo, serviço ou ID do evento..."
+                                             TextChanged="TxtEventSearch_TextChanged" Padding="32,7,8,7"/>
+                                    <TextBlock Text="&#xE721;" FontFamily="{StaticResource Icons}" FontSize="13"
+                                               Foreground="{DynamicResource Muted}" VerticalAlignment="Center"
+                                               Margin="10,0,0,0" IsHitTestVisible="False"/>
+                                </Grid>
+
+                                <!-- Filtros Rápidos de Severidade -->
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button x:Name="BtnFilterAll" Style="{StaticResource OutlineButton}" Content="TODOS"
+                                            Padding="14,6" FontSize="11" Margin="0,0,6,0" Click="FilterAll_Click"/>
+                                    <Button x:Name="BtnFilterErrors" Style="{StaticResource OutlineButton}" Content="ERROS E CRÍTICOS"
+                                            Padding="14,6" FontSize="11" Margin="0,0,6,0" Opacity="0.6" Click="FilterErrors_Click"/>
+                                    <Button x:Name="BtnFilterWarnings" Style="{StaticResource OutlineButton}" Content="AVISOS"
+                                            Padding="14,6" FontSize="11" Opacity="0.6" Click="FilterWarnings_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Mensagem quando vazio -->
+                        <Border x:Name="EventsEmptyNotice" Style="{StaticResource CardBorder}" Padding="24" Visibility="Collapsed" Margin="0,0,0,16">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE73E;" FontFamily="{StaticResource Icons}" FontSize="32"
+                                           Foreground="{DynamicResource Muted}" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                                <TextBlock Text="Nenhum evento encontrado para o filtro atual" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" FontSize="14"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Lista de Eventos Humanizados -->
+                        <ItemsControl x:Name="EventsList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,12" Padding="18,16">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <!-- Cabeçalho: Badge de Severidade + Categoria + Data/Hora -->
+                                            <Grid Grid.Row="0" Margin="0,0,0,8">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <!-- Badge de Severidade -->
+                                                    <Border Background="{Binding SeverityColor}" CornerRadius="4" Padding="7,2" Margin="0,0,8,0">
+                                                        <TextBlock Text="{Binding SeverityText}" FontSize="10" FontWeight="Bold" Foreground="#000000"/>
+                                                    </Border>
+                                                    <!-- Badge de Categoria -->
+                                                    <Border BorderBrush="{DynamicResource LineStrong}" BorderThickness="1" CornerRadius="4" Padding="7,2" Margin="0,0,8,0">
+                                                        <TextBlock Text="{Binding Category}" FontSize="10" Foreground="{DynamicResource Muted}"/>
+                                                    </Border>
+                                                    <!-- Badge de Canal / Provedor -->
+                                                    <TextBlock Text="{Binding SourceBadge}" FontSize="11" Foreground="{DynamicResource Faint}" VerticalAlignment="Center"/>
+                                                </StackPanel>
+
+                                                <!-- Data e Hora -->
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding TimeFormatted}" FontSize="11.5" Foreground="{DynamicResource Muted}"/>
+                                                    <TextBlock Text=" · " FontSize="11.5" Foreground="{DynamicResource Faint}"/>
+                                                    <TextBlock Text="{Binding RelativeTime}" FontSize="11.5" Foreground="{DynamicResource Faint}"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <!-- Título Principal Humanizado -->
+                                            <TextBlock Grid.Row="1" Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,6"/>
+
+                                            <!-- Resumo Explicativo em Português Claro -->
+                                            <TextBlock Grid.Row="2" Text="{Binding Summary}" Foreground="{DynamicResource Muted}" FontSize="12.5" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                                            <!-- Recomendação Acionável (quando houver) e Ação Copiar -->
+                                            <Grid Grid.Row="3" Margin="0,4,0,0">
+                                                <Border Background="#12161A" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="6" Padding="12,8"
+                                                        Visibility="{Binding HasRecommendation, Converter={StaticResource BoolVis}}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="&#xE946;" FontFamily="{StaticResource Icons}" FontSize="14" Foreground="#4DA3FF" Margin="0,2,8,0" VerticalAlignment="Top"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding Recommendation}" FontSize="12" Foreground="#D0E2FF" TextWrapping="Wrap"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <Button Style="{StaticResource OutlineButton}" Content="COPIAR" Padding="10,3" FontSize="10"
+                                                        HorizontalAlignment="Right" VerticalAlignment="Bottom" Tag="{Binding}" Click="BtnCopySelectedEvent_Click"/>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===== DIAGNÓSTICO: TELAS AZUIS E FALHAS ===== -->
+                <ScrollViewer x:Name="PageBsod" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30,36,30">
+                        <Grid Margin="0,0,0,20">
+                            <StackPanel Margin="0,0,240,0">
+                                <TextBlock Text="TELAS AZUIS E FALHAS" Style="{StaticResource H1}"/>
+                                <TextBlock x:Name="BsodStatus" Text="Diagnóstico inteligente de Stop Codes (BSOD), quedas de energia e travamentos de aplicativos" Style="{StaticResource Sub}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                <Button Style="{StaticResource OutlineButton}" Content="PASTA MINIDUMP" Padding="14,9"
+                                        Margin="0,0,10,0" Click="BtnOpenMinidumpFolder_Click"/>
+                                <Button x:Name="BtnBsodRefresh" Style="{StaticResource PrimaryButton}" Content="ATUALIZAR" Padding="20,9"
+                                        Click="BtnBsodRefresh_Click"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Mensagem quando limpo sem falhas -->
+                        <Border x:Name="BsodEmptyNotice" Style="{StaticResource CardBorder}" Padding="30" Visibility="Collapsed" Margin="0,0,0,20">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="&#xE73E;" FontFamily="{StaticResource Icons}" FontSize="36"
+                                           Foreground="#30D158" HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                                <TextBlock Text="Nenhuma tela azul ou falha crítica registrada!" FontWeight="SemiBold"
+                                           FontSize="16" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                                <TextBlock Text="Seu computador não apresentou nenhum erro fatal no registro do sistema recentemente."
+                                           Foreground="{DynamicResource Muted}" FontSize="12.5" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Lista de Falhas e Telas Azuis -->
+                        <ItemsControl x:Name="BsodList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource CardBorder}" Margin="0,0,0,16" Padding="22,18">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <!-- Topo: Tipo de Falha + Causa Provável + Data -->
+                                            <Grid Grid.Row="0" Margin="0,0,0,10">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Background="{Binding SeverityColor}" CornerRadius="4" Padding="8,3" Margin="0,0,10,0">
+                                                        <TextBlock Text="{Binding SeverityBadge}" FontSize="10" FontWeight="Bold" Foreground="#000000"/>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Type}" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <Border BorderBrush="{DynamicResource LineStrong}" BorderThickness="1" CornerRadius="4" Padding="7,2">
+                                                        <TextBlock Text="{Binding CulpritCategory}" FontSize="10.5" Foreground="{DynamicResource Muted}"/>
+                                                    </Border>
+                                                </StackPanel>
+
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding TimeFormatted}" FontSize="11.5" Foreground="{DynamicResource Muted}"/>
+                                                    <TextBlock Text=" · " FontSize="11.5" Foreground="{DynamicResource Faint}"/>
+                                                    <TextBlock Text="{Binding RelativeTime}" FontSize="11.5" Foreground="{DynamicResource Faint}"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <!-- Stop Code / Título de Destaque -->
+                                            <Border Grid.Row="1" Background="#141416" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="8" Padding="14,10" Margin="0,0,0,12">
+                                                <Grid>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource Fg}"/>
+                                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                                            <TextBlock Text="Código de Parada: " FontSize="11.5" Foreground="{DynamicResource Muted}"/>
+                                                            <TextBlock Text="{Binding StopCodeName}" FontSize="11.5" FontWeight="Bold" Foreground="#FF6B6B" Margin="0,0,6,0"/>
+                                                            <TextBlock Text="{Binding StopCodeHex}" FontSize="11" FontFamily="{StaticResource Mono}" Foreground="{DynamicResource Faint}" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                    <Button Style="{StaticResource OutlineButton}" Content="COPIAR RELATÓRIO" Padding="12,5" FontSize="11"
+                                                            HorizontalAlignment="Right" VerticalAlignment="Center" Tag="{Binding}" Click="BtnCopyCrashReport_Click"/>
+                                                </Grid>
+                                            </Border>
+
+                                            <!-- Diagnóstico em Linguagem Humana -->
+                                            <StackPanel Grid.Row="2" Margin="0,0,0,10">
+                                                <TextBlock Text="DIAGNÓSTICO" Style="{StaticResource Label}" Margin="0,0,0,3"/>
+                                                <TextBlock Text="{Binding Explanation}" FontSize="13" TextWrapping="Wrap" Foreground="{DynamicResource Fg}" LineHeight="19"/>
+                                            </StackPanel>
+
+                                            <!-- Ação Recomendada -->
+                                            <Border Grid.Row="3" Background="#161A22" BorderBrush="#2C384D" BorderThickness="1" CornerRadius="8" Padding="14,10" Margin="0,0,0,10">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="&#xE946;" FontFamily="{StaticResource Icons}" FontSize="16" Foreground="#58A6FF" Margin="0,2,10,0" VerticalAlignment="Top"/>
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock Text="O QUE FAZER PARA RESOLVER" FontSize="11" FontWeight="Bold" Foreground="#58A6FF" Margin="0,0,0,3"/>
+                                                        <TextBlock Text="{Binding Recommendation}" FontSize="12.5" Foreground="#E6EDF3" TextWrapping="Wrap" LineHeight="18"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+
+                                            <!-- Detalhes do Aplicativo / Módulo causador (se houver) -->
+                                            <StackPanel Grid.Row="4" Visibility="{Binding HasFaultingDetails, Converter={StaticResource BoolVis}}" Margin="0,4,0,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="Aplicativo: " FontSize="11.5" Foreground="{DynamicResource Muted}"/>
+                                                    <TextBlock Text="{Binding FaultingApp}" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Fg}" Margin="0,0,16,0"/>
+                                                    <TextBlock Text="Módulo: " FontSize="11.5" Foreground="{DynamicResource Muted}"/>
+                                                    <TextBlock Text="{Binding FaultingModule}" FontSize="11.5" FontFamily="{StaticResource Mono}" Foreground="{DynamicResource Faint}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Seção de Arquivos Minidump Encontrados -->
+                        <Border x:Name="MinidumpSection" Style="{StaticResource CardBorder}" Padding="18,16" Margin="0,8,0,0">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,10">
+                                    <TextBlock Text="ARQUIVOS MINIDUMP (.DMP) NO DISCO" Style="{StaticResource Label}"/>
+                                    <Button Style="{StaticResource OutlineButton}" Content="ABRIR PASTA" Padding="10,3" FontSize="10.5"
+                                            HorizontalAlignment="Right" Click="BtnOpenMinidumpFolder_Click"/>
+                                </Grid>
+                                <ItemsControl x:Name="MinidumpList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,8">
+                                                <Grid>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12.5"/>
+                                                        <TextBlock Text="{Binding Path}" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding SizeFormatted}" FontSize="11.5" Foreground="{DynamicResource Muted}" Margin="0,0,12,0"/>
+                                                        <TextBlock Text="{Binding CreatedFormatted}" FontSize="11.5" Foreground="{DynamicResource Faint}"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
         </Grid>
     </Border>
