@@ -74,9 +74,9 @@ public sealed class G15Settings
     public int KbBrightness { get; set; } = 100;
 
     // Automação na inicialização
-    public bool StartWithWindows { get; set; } = true;
+    public bool StartWithWindows { get; set; } = false;
     public bool StartMinimized { get; set; } = false;
-    public bool AutoApplyOnStartup { get; set; } = true;
+    public bool AutoApplyOnStartup { get; set; } = false;
 }
 
 /// <summary>Configurações em %AppData%\ResetExplode. A chave da API é cifrada com DPAPI (só este usuário do Windows a lê).</summary>

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -18,7 +19,17 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        try { ResetExplode.MainWindow.CleanupLegacyG15Apps(); } catch { }
+        if (File.Exists(Path.Combine(AppSettings.Folder, "restore_legacy_startup.flag")))
+        {
+            try
+            {
+                File.Delete(Path.Combine(AppSettings.Folder, "restore_legacy_startup.flag"));
+                ResetExplode.MainWindow.RestoreLegacyG15AppsAndDisableSelf();
+            }
+            catch { }
+            Shutdown();
+            return;
+        }
 
         bool first;
         try { _single = new Mutex(true, @"Local\ResetExplode.SingleInstance", out first); }

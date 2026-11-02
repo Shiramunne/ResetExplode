@@ -1438,7 +1438,61 @@ public partial class MainWindow
 
         // Desativa as tarefas redundantes do Afterburner, UXTU e AlienFX na inicialização do Windows,
         // já que o Araújo Control Suite assumiu 100% do controle (NVAPI nativo, SMU PawnIO, AlienFan e AlienFX).
-        CleanupLegacyG15Apps();
+        // CleanupLegacyG15Apps(); // Mantém as tarefas originais (Afterburner, UXTU, alienfx-gui) intactas
+    }
+
+    public static void RestoreLegacyG15AppsAndDisableSelf()
+    {
+        foreach (string legacyTask in new[] { "\\MSIAfterburner", "\\UXTU", "\\alienfx-gui" })
+        {
+            try
+            {
+                using var en = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "schtasks.exe",
+                    Arguments = $"/Change /TN \"{legacyTask}\" /Enable",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                });
+                en?.WaitForExit(2000);
+            }
+            catch { }
+        }
+
+        foreach (string legacyTask in new[] { "\\MSIAfterburner", "\\UXTU", "\\alienfx-gui" })
+        {
+            try
+            {
+                using var run = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "schtasks.exe",
+                    Arguments = $"/Run /TN \"{legacyTask}\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                });
+                run?.WaitForExit(2000);
+            }
+            catch { }
+        }
+
+        try
+        {
+            using var del = Process.Start(new ProcessStartInfo
+            {
+                FileName = "schtasks.exe",
+                Arguments = $"/Delete /TN \"\\{ScheduledTaskName}\" /F",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            });
+            del?.WaitForExit(2000);
+        }
+        catch { }
     }
 
     public static void CleanupLegacyG15Apps()
