@@ -73,7 +73,7 @@ public sealed class G15Settings
 
     // Automação na inicialização
     public bool StartWithWindows { get; set; } = true;
-    public bool StartMinimized { get; set; } = true;
+    public bool StartMinimized { get; set; } = false;
     public bool AutoApplyOnStartup { get; set; } = true;
 }
 

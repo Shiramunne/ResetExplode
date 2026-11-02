@@ -99,7 +99,7 @@ public partial class MainWindow : Window
         TitlePage.Text = "Visão geral";
         UpdateDashboard();
 
-        if (Environment.GetCommandLineArgs().Any(a => string.Equals(a, "--minimized", StringComparison.OrdinalIgnoreCase)))
+        if (_settings.G15.StartMinimized && Environment.GetCommandLineArgs().Any(a => string.Equals(a, "--minimized", StringComparison.OrdinalIgnoreCase)))
             WindowState = WindowState.Minimized;
 
         // A janela aparece já; as coletas pesadas (WMI, sensores, GPU) rodam em paralelo fora da thread da janela.

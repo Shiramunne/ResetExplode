@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
@@ -6,7 +7,7 @@ namespace ResetExplode;
 
 public partial class App : Application
 {
-    // Uma única instância: abrir o RESET EXPLODE de novo só traz a janela que já está aberta para a frente.
+    // Uma única instância: abrir o ARAÚJO CONTROL SUITE de novo traz a janela que já está aberta para a frente.
     private static Mutex? _single;
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string? cls, string title);
@@ -27,12 +28,29 @@ public partial class App : Application
             if (h != IntPtr.Zero)
             {
                 if (IsIconic(h)) ShowWindow(h, 9); // SW_RESTORE
+                else ShowWindow(h, 5);             // SW_SHOW
                 SetForegroundWindow(h);
+                Shutdown();
+                return;
             }
-            Shutdown();
-            return;
+
+            // Se outra instância estava presa em outro desktop (ex.: sessão remota/sandbox) sem janela visível aqui,
+            // encerra a instância órfã e abre normalmente no desktop atual do usuário.
+            int myPid = Environment.ProcessId;
+            foreach (var p in Process.GetProcessesByName("AraujoControlSuite"))
+            {
+                if (p.Id != myPid)
+                {
+                    try { p.Kill(); p.WaitForExit(1500); } catch { }
+                }
+            }
         }
         base.OnStartup(e);
-        new MainWindow().Show();
+        var win = new MainWindow();
+        win.Show();
+        if (win.WindowState != WindowState.Minimized)
+        {
+            win.Activate();
+        }
     }
 }

@@ -68,7 +68,7 @@ public partial class MainWindow
             UpdateG15KbPreview();
 
             // 5. Inicialização e Automação
-            if (cfg.StartWithWindows && !IsG15ScheduledTaskRegistered())
+            if (cfg.StartWithWindows)
             {
                 SetG15ScheduledTask(true, cfg.StartMinimized);
             }
