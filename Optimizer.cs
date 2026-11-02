@@ -39,7 +39,7 @@ public static class Optimizer
         "ShellExperienceHost", "SearchHost", "SearchIndexer", "TextInputHost", "SecurityHealthService", "SecurityHealthSystray",
         "MsMpEng", "NisSrv", "SgrmBroker", "audiodg", "conhost", "dllhost", "spoolsv", "WmiPrvSE", "LockApp", "ApplicationFrameHost",
         "SystemSettings", "smartscreen", "MemCompression", "Secure System", "WUDFHost", "dasHost", "nvcontainer", "NVDisplay.Container",
-        "atiesrxx", "atieclxx", "amdfendrsr", "RadeonSoftware", "igfxEM", "PawnIO", "ResetExplode", "cmd", "powershell", "WindowsTerminal",
+        "atiesrxx", "atieclxx", "amdfendrsr", "RadeonSoftware", "igfxEM", "PawnIO", "ResetExplode", "AraujoControlSuite", "cmd", "powershell", "WindowsTerminal",
         "OpenConsole", "devenv", "Code", "dotnet",
     };
 

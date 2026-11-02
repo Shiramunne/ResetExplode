@@ -43,6 +43,40 @@ public sealed class CustomGame
     public string Args { get; set; } = "";
 }
 
+/// <summary>Configurações da aba G15 Control (GPU Undervolt, Ryzen SMU, AlienFan e Teclado AlienFX).</summary>
+public sealed class G15Settings
+{
+    public int ActiveGpuProfile { get; set; } = 1;
+
+    // Perfil 1 (Otimizado · Undervolt 850 mV)
+    public int P1MemClockMhz { get; set; } = 500;
+    public int P1VoltageMv { get; set; } = 850;
+    public int P1CoreClockMhz { get; set; } = 1860;
+
+    // Perfil 2 (Compatibilidade · 1000 mV)
+    public int P2MemClockMhz { get; set; } = 0;
+    public int P2VoltageMv { get; set; } = 1000;
+    public int P2CoreOffsetMhz { get; set; } = 950;
+
+    // CPU AMD Ryzen 7 5800H (SMU)
+    public int ApuTempLimit { get; set; } = 88;
+    public int ApuStapmWatts { get; set; } = 35;
+    public int ApuSlowWatts { get; set; } = 35;
+    public int ApuFastWatts { get; set; } = 42;
+
+    // Refrigeração Dell G15 & G-Mode
+    public bool GModeEnabled { get; set; } = false;
+
+    // Iluminação Teclado AlienFX
+    public string KbColorHex { get; set; } = "#00A3FF";
+    public int KbBrightness { get; set; } = 100;
+
+    // Automação na inicialização
+    public bool StartWithWindows { get; set; } = true;
+    public bool StartMinimized { get; set; } = true;
+    public bool AutoApplyOnStartup { get; set; } = true;
+}
+
 /// <summary>Configurações em %AppData%\ResetExplode. A chave da API é cifrada com DPAPI (só este usuário do Windows a lê).</summary>
 public sealed class AppSettings
 {
@@ -69,6 +103,9 @@ public sealed class AppSettings
 
     // Aparência
     public bool LightTheme { get; set; }
+
+    // G15 Control (Dell G15 5515 Hub)
+    public G15Settings G15 { get; set; } = new();
 
     // Overlay
     public string OverlayCorner { get; set; } = "TL";

@@ -8,8 +8,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <AssemblyName>ResetExplode</AssemblyName>
-    <Product>RESET EXPLODE</Product>
+    <AssemblyName>AraujoControlSuite</AssemblyName>
+    <Product>ARAÚJO CONTROL SUITE</Product>
     <Version>0.16.0</Version>
     <!-- Sempre otimizado: o RESET BENCH e os stress tests precisam do JIT otimizado também em Debug -->
     <Optimize>true</Optimize>
@@ -21,6 +21,7 @@
     <Resource Include="Assets\app.ico" />
     <Resource Include="Assets\logo-badge.png" />
     <Resource Include="Assets\logo-dark.png" />
+    <Resource Include="Assets\banner.png" />
   </ItemGroup>
 
   <!-- Drivers seriais oficiais embutidos (RESET MAKER): cada pasta Drivers\<chip> vira recurso e é extraída na hora de instalar.
@@ -45,4 +46,7 @@
     <PackageReference Include="Vortice.Dxc" Version="3.8.3" />
   </ItemGroup>
 
+  <Target Name="MirrorExeForCi" AfterTargets="Publish" Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <Copy SourceFiles="$(PublishDir)AraujoControlSuite.exe" DestinationFiles="$(PublishDir)ResetExplode.exe" Condition="Exists('$(PublishDir)AraujoControlSuite.exe')" />
+  </Target>
 </Project>

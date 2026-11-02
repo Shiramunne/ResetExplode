@@ -22,7 +22,8 @@ public partial class App : Application
 
         if (!first)
         {
-            IntPtr h = FindWindow(null, "RESET EXPLODE");
+            IntPtr h = FindWindow(null, "ARAÚJO CONTROL SUITE");
+            if (h == IntPtr.Zero) h = FindWindow(null, "RESET EXPLODE");
             if (h != IntPtr.Zero)
             {
                 if (IsIconic(h)) ShowWindow(h, 9); // SW_RESTORE

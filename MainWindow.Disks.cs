@@ -175,7 +175,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "Não foi possível gerar o relatório:\n" + ex.Message, "RESET EXPLODE", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "Não foi possível gerar o relatório:\n" + ex.Message, "ARAÚJO CONTROL SUITE", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
         {
