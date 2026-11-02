@@ -18,7 +18,7 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        try { MainWindow.CleanupLegacyG15Apps(); } catch { }
+        try { ResetExplode.MainWindow.CleanupLegacyG15Apps(); } catch { }
 
         bool first;
         try { _single = new Mutex(true, @"Local\ResetExplode.SingleInstance", out first); }
