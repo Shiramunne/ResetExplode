@@ -241,6 +241,18 @@ public partial class MainWindow
         G15GpuStatus.Text = $"Valores padrão do Perfil {cfg.ActiveGpuProfile} restaurados. Clique em APLICAR CURVA GPU para confirmar.";
     }
 
+    [DllImport("nvapi64.dll", EntryPoint = "nvapi_QueryInterface", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr NvApiQueryInterface(uint id);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int NvApiInitializeDelegate();
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int NvApiEnumPhysicalGpusDelegate([Out] IntPtr[] handles, out int count);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int NvApiGpuBufferDelegate(IntPtr gpuHandle, [In, Out] byte[] buffer);
+
     private static string ApplyG15GpuProfileInternal(G15Settings cfg)
     {
         int profile = cfg.ActiveGpuProfile == 2 ? 2 : 1;
@@ -248,37 +260,186 @@ public partial class MainWindow
         int voltMv = profile == 1 ? cfg.P1VoltageMv : cfg.P2VoltageMv;
         int coreVal = profile == 1 ? cfg.P1CoreClockMhz : cfg.P2CoreOffsetMhz;
 
-        bool abUpdated = false;
-        string? gpuCfgPath = FindAfterburnerGpuCfg();
-        if (gpuCfgPath != null && File.Exists(gpuCfgPath))
-        {
-            UpdateAfterburnerCfgFile(gpuCfgPath, profile, memMhz, voltMv, coreVal);
-            abUpdated = true;
-        }
+        // 1. Aplica diretamente no driver da NVIDIA via nvapi64.dll nativo (SetPstates20 + SetClockBoostTable),
+        //    SEM precisar abrir ou ter o MSI Afterburner instalado!
+        bool nvapiOk = TryApplyNvidiaNativeNvapi(profile, memMhz, voltMv, coreVal, out string nvapiDetail);
 
-        if (File.Exists(AfterburnerExePath))
+        // 2. Opcional: se o arquivo .cfg do Afterburner existir no disco, mantém sincronizado apenas como backup passivo
+        try
         {
-            using var proc = Process.Start(new ProcessStartInfo
+            string? gpuCfgPath = FindAfterburnerGpuCfg();
+            if (gpuCfgPath != null && File.Exists(gpuCfgPath))
             {
-                FileName = AfterburnerExePath,
-                Arguments = $"-Profile{profile}",
-                WorkingDirectory = AfterburnerDir,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            });
-            proc?.WaitForExit(4000);
+                UpdateAfterburnerCfgFile(gpuCfgPath, profile, memMhz, voltMv, coreVal);
+            }
         }
-
-        // Também aplica via NvTuning (NVAPI) se disponível para efeito imediato sem depender de UI
-        bool nvApiApplied = TryApplyNvidiaViaUxtuDll(profile, memMhz, voltMv, coreVal);
+        catch { }
 
         if (profile == 1)
         {
-            return $"Perfil 1 (Otimizado) ativo: Curva cravada em {coreVal} MHz @ {voltMv} mV · Memória {(memMhz >= 0 ? "+" : "")}{memMhz} MHz" +
-                   (abUpdated ? " (Afterburner + NVAPI sincronizados)." : nvApiApplied ? " (aplicado via NVAPI)." : ".");
+            return nvapiOk
+                ? $"Perfil 1 (Otimizado) aplicado direto no driver NVIDIA (NVAPI nativo, sem Afterburner): Curva travada em {coreVal} MHz @ {voltMv} mV · VRAM {(memMhz >= 0 ? "+" : "")}{memMhz} MHz."
+                : $"Perfil 1 ({coreVal} MHz @ {voltMv} mV): {nvapiDetail}";
         }
-        return $"Perfil 2 (Compatibilidade) ativo: {voltMv} mV · Offset +{coreVal} MHz · Memória {(memMhz >= 0 ? "+" : "")}{memMhz} MHz" +
-               (abUpdated ? " (Afterburner sincronizado)." : ".");
+        return nvapiOk
+            ? $"Perfil 2 (Compatibilidade) aplicado direto no driver NVIDIA (NVAPI nativo, sem Afterburner): {voltMv} mV · Offset +{coreVal} MHz · VRAM {(memMhz >= 0 ? "+" : "")}{memMhz} MHz."
+            : $"Perfil 2 ({voltMv} mV · +{coreVal} MHz): {nvapiDetail}";
+    }
+
+    private static bool TryApplyNvidiaNativeNvapi(int profile, int memMhz, int voltMv, int coreVal, out string detail)
+    {
+        detail = "";
+        try
+        {
+            IntPtr pInit = NvApiQueryInterface(0x0150E828);
+            IntPtr pEnum = NvApiQueryInterface(0xE5AC921F);
+            IntPtr pGetMask = NvApiQueryInterface(0x507B4B59);
+            IntPtr pGetTable = NvApiQueryInterface(0x23F1B133);
+            IntPtr pSetTable = NvApiQueryInterface(0x0733E009);
+            IntPtr pGetVfp = NvApiQueryInterface(0x21537AD4);
+            IntPtr pSetPstates = NvApiQueryInterface(0x0F4DAE6B);
+
+            if (pInit == IntPtr.Zero || pEnum == IntPtr.Zero || pGetMask == IntPtr.Zero ||
+                pGetTable == IntPtr.Zero || pSetTable == IntPtr.Zero || pGetVfp == IntPtr.Zero || pSetPstates == IntPtr.Zero)
+            {
+                detail = "Funções NVAPI de curva V/F não encontradas no driver.";
+                return false;
+            }
+
+            var nvInit = Marshal.GetDelegateForFunctionPointer<NvApiInitializeDelegate>(pInit);
+            var nvEnum = Marshal.GetDelegateForFunctionPointer<NvApiEnumPhysicalGpusDelegate>(pEnum);
+            var getMask = Marshal.GetDelegateForFunctionPointer<NvApiGpuBufferDelegate>(pGetMask);
+            var getTable = Marshal.GetDelegateForFunctionPointer<NvApiGpuBufferDelegate>(pGetTable);
+            var setTable = Marshal.GetDelegateForFunctionPointer<NvApiGpuBufferDelegate>(pSetTable);
+            var getVfp = Marshal.GetDelegateForFunctionPointer<NvApiGpuBufferDelegate>(pGetVfp);
+            var setPstates = Marshal.GetDelegateForFunctionPointer<NvApiGpuBufferDelegate>(pSetPstates);
+
+            if (nvInit() != 0)
+            {
+                detail = "Falha ao inicializar nvapi64.dll.";
+                return false;
+            }
+
+            IntPtr[] gpus = new IntPtr[64];
+            if (nvEnum(gpus, out int gpuCount) != 0 || gpuCount <= 0)
+            {
+                detail = "Nenhuma GPU física NVIDIA encontrada.";
+                return false;
+            }
+            IntPtr gpu = gpus[0];
+
+            // 1. Lê a máscara de pontos V/F suportados pela GPU (6188 bytes, ver 1)
+            byte[] maskBuf = new byte[6188];
+            BitConverter.TryWriteBytes(maskBuf.AsSpan(0, 4), (1u << 16) | 6188u);
+            if (getMask(gpu, maskBuf) != 0)
+            {
+                detail = "Falha em NvAPI_GPU_GetClockBoostMask.";
+                return false;
+            }
+
+            // 2. Zera a tabela de offsets da curva primeiro para medir a curva base limpa
+            byte[] tableBuf = new byte[9248];
+            BitConverter.TryWriteBytes(tableBuf.AsSpan(0, 4), (1u << 16) | 9248u);
+            Buffer.BlockCopy(maskBuf, 4, tableBuf, 4, 32);
+            getTable(gpu, tableBuf);
+            for (int i = 0; i < 255; i++)
+            {
+                BitConverter.TryWriteBytes(tableBuf.AsSpan(68 + i * 36 + 20, 4), 0);
+            }
+            setTable(gpu, tableBuf);
+
+            // 3. Aplica o offset de Memória (VRAM) e Core P0 via SetPstates20 (7416 bytes, ver 2)
+            byte[] pstateBuf = new byte[7416];
+            BitConverter.TryWriteBytes(pstateBuf.AsSpan(0, 4), (2u << 16) | 7416u);
+            BitConverter.TryWriteBytes(pstateBuf.AsSpan(8, 4), 1u);  // numPstates = 1
+            BitConverter.TryWriteBytes(pstateBuf.AsSpan(12, 4), 2u); // numClocks = 2
+            BitConverter.TryWriteBytes(pstateBuf.AsSpan(20, 4), 0u); // pstateId = P0 (0)
+
+            // Clock 0: Core (domainId = 0)
+            int corePstateDeltaKhz = profile == 2 ? coreVal * 1000 : 0;
+            BitConverter.TryWriteBytes(pstateBuf.AsSpan(28, 4), 0u);
+            BitConverter.TryWriteBytes(pstateBuf.AsSpan(40, 4), corePstateDeltaKhz);
+
+            // Clock 1: Memory (domainId = 4)
+            int memPstateDeltaKhz = memMhz * 1000;
+            BitConverter.TryWriteBytes(pstateBuf.AsSpan(72, 4), 4u);
+            BitConverter.TryWriteBytes(pstateBuf.AsSpan(84, 4), memPstateDeltaKhz);
+
+            int rPstate = setPstates(gpu, pstateBuf);
+
+            // 4. Se Perfil 1 (Undervolt por Curva V/F), calcula e grava cada ponto na ClockBoostTable
+            if (profile == 1)
+            {
+                byte[] vfpBuf = new byte[7208];
+                BitConverter.TryWriteBytes(vfpBuf.AsSpan(0, 4), (1u << 16) | 7208u);
+                Buffer.BlockCopy(maskBuf, 4, vfpBuf, 4, 32);
+                if (getVfp(gpu, vfpBuf) != 0)
+                {
+                    detail = "Falha em NvAPI_GPU_GetVFPointsStatus.";
+                    return false;
+                }
+
+                int targetKhz = coreVal * 1000;
+                uint targetVoltUv = (uint)(voltMv * 1000);
+
+                // Descobre a frequência base no ponto de tensão escolhido (ex.: 850 mV)
+                int baseAtPivotKhz = 1665000;
+                for (int i = 0; i < 255; i++)
+                {
+                    uint fKhz = BitConverter.ToUInt32(vfpBuf, 68 + i * 28 + 4);
+                    uint vUv = BitConverter.ToUInt32(vfpBuf, 68 + i * 28 + 8);
+                    if (fKhz > 0 && vUv >= targetVoltUv)
+                    {
+                        baseAtPivotKhz = (int)fKhz;
+                        break;
+                    }
+                }
+
+                int pivotDeltaKhz = Math.Max(0, targetKhz - baseAtPivotKhz);
+
+                for (int i = 0; i < 255; i++)
+                {
+                    uint baseFreqKhz = BitConverter.ToUInt32(vfpBuf, 68 + i * 28 + 4);
+                    uint voltUv = BitConverter.ToUInt32(vfpBuf, 68 + i * 28 + 8);
+                    if (baseFreqKhz == 0 || voltUv == 0) continue;
+
+                    double ptMv = voltUv / 1000.0;
+                    int deltaKhz;
+                    if (ptMv >= voltMv)
+                    {
+                        // Trava todos os pontos >= voltMv (ex.: 850 mV até 1093 mV) exatamente em targetKhz (ex.: 1860 MHz)
+                        deltaKhz = targetKhz - (int)baseFreqKhz;
+                    }
+                    else if (ptMv >= 700.0)
+                    {
+                        // Rampa progressiva suave entre 700 mV e voltMv
+                        double t = (ptMv - 700.0) / Math.Max(25.0, voltMv - 700.0);
+                        deltaKhz = (int)Math.Round(t * pivotDeltaKhz);
+                    }
+                    else
+                    {
+                        deltaKhz = 0;
+                    }
+
+                    BitConverter.TryWriteBytes(tableBuf.AsSpan(68 + i * 36 + 20, 4), deltaKhz);
+                }
+
+                int rTable = setTable(gpu, tableBuf);
+                if (rTable != 0)
+                {
+                    detail = $"SetClockBoostTable retornou código {rTable}.";
+                    return false;
+                }
+            }
+
+            detail = rPstate == 0 ? "OK" : $"SetPstates20={rPstate}";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            detail = ex.Message;
+            return false;
+        }
     }
 
     private static string? FindAfterburnerGpuCfg()
@@ -987,6 +1148,26 @@ public partial class MainWindow
             CreateNoWindow = true
         });
         create?.WaitForExit(4000);
+
+        // Desativa as tarefas redundantes do Afterburner e UXTU na inicialização do Windows,
+        // já que o Araújo Control Suite aplica a curva V/F via NVAPI nativo e os limites SMU via PawnIO.
+        foreach (string legacyTask in new[] { "\\MSIAfterburner", "\\UXTU" })
+        {
+            try
+            {
+                using var dis = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "schtasks.exe",
+                    Arguments = $"/Change /TN \"{legacyTask}\" /Disable",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                });
+                dis?.WaitForExit(2000);
+            }
+            catch { }
+        }
     }
 
     // ---------------- Bandeja do Sistema (System Tray) ----------------
