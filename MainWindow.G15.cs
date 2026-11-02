@@ -54,11 +54,14 @@ public partial class MainWindow
             RbG15GpuP2.IsChecked = cfg.ActiveGpuProfile == 2;
             SyncG15GpuSlidersToProfile(cfg.ActiveGpuProfile);
 
-            // 2. CPU Ryzen SMU
+            // 2. CPU Ryzen SMU & Auto-Reaplicação UXTU
+            if (cfg.AutoReapplySeconds < 3 || cfg.AutoReapplySeconds > 60) cfg.AutoReapplySeconds = 15;
             G15CpuTempSlider.Value = cfg.ApuTempLimit;
             G15CpuStapmSlider.Value = cfg.ApuStapmWatts;
             G15CpuSlowSlider.Value = cfg.ApuSlowWatts;
             G15CpuFastSlider.Value = cfg.ApuFastWatts;
+            ChkG15CpuAutoReapply.IsChecked = cfg.AutoReapplyCpu;
+            G15CpuIntervalSlider.Value = cfg.AutoReapplySeconds;
             UpdateG15CpuLabels();
 
             // 3. Refrigeração / G-Mode
@@ -69,6 +72,7 @@ public partial class MainWindow
             // 4. Iluminação do Teclado
             G15KbHexBox.Text = string.IsNullOrWhiteSpace(cfg.KbColorHex) ? "#00A3FF" : cfg.KbColorHex;
             G15KbBrightSlider.Value = Math.Clamp(cfg.KbBrightness, 0, 100);
+            if (G15KbBrightBox != null) G15KbBrightBox.Text = Math.Clamp(cfg.KbBrightness, 0, 100).ToString();
             UpdateG15KbPreview();
 
             // 5. Inicialização e Automação
@@ -87,7 +91,7 @@ public partial class MainWindow
 
         // Dispara leitura inicial e auto-aplicação silenciosa se configurado
         _ = RefreshG15SensorsAsync();
-        if (_settings.G15.AutoApplyOnStartup)
+        if (_settings.G15.AutoApplyOnStartup || _settings.G15.AutoReapplyCpu)
         {
             _ = ApplyAllG15Async(silent: true);
         }
@@ -141,6 +145,10 @@ public partial class MainWindow
 
         G15MemValue.Text = $"{(mem >= 0 ? "+" : "")}{mem} MHz";
         G15VoltValue.Text = $"{mv} mV";
+
+        if (G15MemBox != null && !G15MemBox.IsKeyboardFocusWithin) G15MemBox.Text = mem.ToString();
+        if (G15VoltBox != null && !G15VoltBox.IsKeyboardFocusWithin) G15VoltBox.Text = mv.ToString();
+        if (G15CoreBox != null && !G15CoreBox.IsKeyboardFocusWithin) G15CoreBox.Text = core.ToString();
 
         if (profile == 1)
         {
@@ -204,8 +212,65 @@ public partial class MainWindow
         UpdateG15GpuLabels();
     }
 
+    private void G15NumericBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter && sender is TextBox tb)
+        {
+            e.Handled = true;
+            if (tb == G15MemBox || tb == G15VoltBox || tb == G15CoreBox)
+                CommitG15GpuBox(tb);
+            else if (tb == G15KbBrightBox)
+                CommitG15KbBrightBox();
+            else
+                CommitG15CpuBox(tb);
+
+            tb.SelectAll();
+        }
+    }
+
+    private void G15GpuBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb) CommitG15GpuBox(tb);
+    }
+
+    private void CommitG15GpuBox(TextBox tb)
+    {
+        if (_g15UiInitializing) return;
+        string clean = Regex.Replace(tb.Text ?? "", @"[^\d\-]", "");
+        if (!int.TryParse(clean, out int val))
+        {
+            UpdateG15GpuLabels();
+            return;
+        }
+
+        if (tb == G15MemBox)
+        {
+            val = Math.Clamp(val, (int)G15MemSlider.Minimum, (int)G15MemSlider.Maximum);
+            G15MemSlider.Value = val;
+            tb.Text = val.ToString();
+        }
+        else if (tb == G15VoltBox)
+        {
+            val = Math.Clamp(val, (int)G15VoltSlider.Minimum, (int)G15VoltSlider.Maximum);
+            G15VoltSlider.Value = val;
+            tb.Text = val.ToString();
+        }
+        else if (tb == G15CoreBox)
+        {
+            val = Math.Clamp(val, (int)G15CoreSlider.Minimum, (int)G15CoreSlider.Maximum);
+            G15CoreSlider.Value = val;
+            tb.Text = val.ToString();
+        }
+        UpdateG15QuickProfileBadge();
+        _settings.Save();
+    }
+
     private async void BtnG15GpuApply_Click(object sender, RoutedEventArgs e)
     {
+        if (G15MemBox != null) CommitG15GpuBox(G15MemBox);
+        if (G15VoltBox != null) CommitG15GpuBox(G15VoltBox);
+        if (G15CoreBox != null) CommitG15GpuBox(G15CoreBox);
+
         BtnG15GpuApply.IsEnabled = false;
         G15GpuStatus.Text = "Aplicando curva e clocks na RTX 3060…";
         try
@@ -244,7 +309,6 @@ public partial class MainWindow
         _settings.Save();
         G15GpuStatus.Text = $"Valores padrão do Perfil {cfg.ActiveGpuProfile} restaurados. Clique em APLICAR CURVA GPU para confirmar.";
     }
-
     [DllImport("nvapi64.dll", EntryPoint = "nvapi_QueryInterface", CallingConvention = CallingConvention.Cdecl)]
     private static extern IntPtr NvApiQueryInterface(uint id);
 
@@ -562,20 +626,99 @@ public partial class MainWindow
         cfg.ApuStapmWatts = (int)Math.Round(G15CpuStapmSlider.Value);
         cfg.ApuSlowWatts = (int)Math.Round(G15CpuSlowSlider.Value);
         cfg.ApuFastWatts = (int)Math.Round(G15CpuFastSlider.Value);
+        if (G15CpuIntervalSlider != null)
+            cfg.AutoReapplySeconds = Math.Clamp((int)Math.Round(G15CpuIntervalSlider.Value), 3, 60);
         UpdateG15CpuLabels();
+    }
+
+    private void ChkG15CpuAutoReapply_Click(object sender, RoutedEventArgs e)
+    {
+        if (_g15UiInitializing) return;
+        _settings.G15.AutoReapplyCpu = ChkG15CpuAutoReapply.IsChecked == true;
+        _settings.Save();
+        if (_settings.G15.AutoReapplyCpu)
+        {
+            _lastSmuReapply = DateTime.MinValue; // dispara reaplicação imediata no próximo tick
+        }
+    }
+
+    private void G15CpuBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb) CommitG15CpuBox(tb);
+    }
+
+    private void CommitG15CpuBox(TextBox tb)
+    {
+        if (_g15UiInitializing) return;
+        string clean = Regex.Replace(tb.Text ?? "", @"[^\d]", "");
+        if (!int.TryParse(clean, out int val))
+        {
+            UpdateG15CpuLabels();
+            return;
+        }
+
+        if (tb == G15CpuTempBox)
+        {
+            val = Math.Clamp(val, (int)G15CpuTempSlider.Minimum, (int)G15CpuTempSlider.Maximum);
+            G15CpuTempSlider.Value = val;
+            tb.Text = val.ToString();
+        }
+        else if (tb == G15CpuStapmBox)
+        {
+            val = Math.Clamp(val, (int)G15CpuStapmSlider.Minimum, (int)G15CpuStapmSlider.Maximum);
+            G15CpuStapmSlider.Value = val;
+            tb.Text = val.ToString();
+        }
+        else if (tb == G15CpuSlowBox)
+        {
+            val = Math.Clamp(val, (int)G15CpuSlowSlider.Minimum, (int)G15CpuSlowSlider.Maximum);
+            G15CpuSlowSlider.Value = val;
+            tb.Text = val.ToString();
+        }
+        else if (tb == G15CpuFastBox)
+        {
+            val = Math.Clamp(val, (int)G15CpuFastSlider.Minimum, (int)G15CpuFastSlider.Maximum);
+            G15CpuFastSlider.Value = val;
+            tb.Text = val.ToString();
+        }
+        else if (tb == G15CpuIntervalBox && G15CpuIntervalSlider != null)
+        {
+            val = Math.Clamp(val, (int)G15CpuIntervalSlider.Minimum, (int)G15CpuIntervalSlider.Maximum);
+            G15CpuIntervalSlider.Value = val;
+            tb.Text = val.ToString();
+        }
+        _settings.Save();
     }
 
     private void UpdateG15CpuLabels()
     {
         if (G15CpuTempValue == null) return;
-        G15CpuTempValue.Text = $"{(int)Math.Round(G15CpuTempSlider.Value)} °C";
-        G15CpuStapmValue.Text = $"{(int)Math.Round(G15CpuStapmSlider.Value)} W";
-        G15CpuSlowValue.Text = $"{(int)Math.Round(G15CpuSlowSlider.Value)} W";
-        G15CpuFastValue.Text = $"{(int)Math.Round(G15CpuFastSlider.Value)} W";
+        int temp = (int)Math.Round(G15CpuTempSlider.Value);
+        int stapm = (int)Math.Round(G15CpuStapmSlider.Value);
+        int slow = (int)Math.Round(G15CpuSlowSlider.Value);
+        int fast = (int)Math.Round(G15CpuFastSlider.Value);
+        int interval = G15CpuIntervalSlider != null ? (int)Math.Round(G15CpuIntervalSlider.Value) : _settings.G15.AutoReapplySeconds;
+
+        G15CpuTempValue.Text = $"{temp} °C";
+        G15CpuStapmValue.Text = $"{stapm} W";
+        G15CpuSlowValue.Text = $"{slow} W";
+        G15CpuFastValue.Text = $"{fast} W";
+
+        if (G15CpuTempBox != null && !G15CpuTempBox.IsKeyboardFocusWithin) G15CpuTempBox.Text = temp.ToString();
+        if (G15CpuStapmBox != null && !G15CpuStapmBox.IsKeyboardFocusWithin) G15CpuStapmBox.Text = stapm.ToString();
+        if (G15CpuSlowBox != null && !G15CpuSlowBox.IsKeyboardFocusWithin) G15CpuSlowBox.Text = slow.ToString();
+        if (G15CpuFastBox != null && !G15CpuFastBox.IsKeyboardFocusWithin) G15CpuFastBox.Text = fast.ToString();
+        if (G15CpuIntervalBox != null && !G15CpuIntervalBox.IsKeyboardFocusWithin) G15CpuIntervalBox.Text = interval.ToString();
     }
 
     private async void BtnG15CpuApply_Click(object sender, RoutedEventArgs e)
     {
+        if (G15CpuTempBox != null) CommitG15CpuBox(G15CpuTempBox);
+        if (G15CpuStapmBox != null) CommitG15CpuBox(G15CpuStapmBox);
+        if (G15CpuSlowBox != null) CommitG15CpuBox(G15CpuSlowBox);
+        if (G15CpuFastBox != null) CommitG15CpuBox(G15CpuFastBox);
+        if (G15CpuIntervalBox != null) CommitG15CpuBox(G15CpuIntervalBox);
+
         BtnG15CpuApply.IsEnabled = false;
         G15CpuStatus.Text = "Enviando limites ao SMU do Ryzen 7 5800H…";
         try
@@ -602,22 +745,27 @@ public partial class MainWindow
         cfg.ApuStapmWatts = 29;
         cfg.ApuSlowWatts = 29;
         cfg.ApuFastWatts = 32;
+        cfg.AutoReapplyCpu = true;
+        cfg.AutoReapplySeconds = 15;
 
         _g15UiInitializing = true;
         G15CpuTempSlider.Value = 88;
         G15CpuStapmSlider.Value = 29;
         G15CpuSlowSlider.Value = 29;
         G15CpuFastSlider.Value = 32;
+        if (ChkG15CpuAutoReapply != null) ChkG15CpuAutoReapply.IsChecked = true;
+        if (G15CpuIntervalSlider != null) G15CpuIntervalSlider.Value = 15;
         _g15UiInitializing = false;
 
         UpdateG15CpuLabels();
         _settings.Save();
-        G15CpuStatus.Text = "Preset frio original carregado (88 °C · 29W STAPM · 29W Slow · 32W Fast). Clique em APLICAR LIMITES CPU.";
+        G15CpuStatus.Text = "Preset frio original carregado (88 °C · 29W STAPM · 29W Slow · 32W Fast · Reaplicação 15s). Clique em APLICAR LIMITES CPU.";
     }
 
     private static string ApplyG15CpuLimitsInternal(G15Settings cfg)
     {
         bool smuOk = false;
+        string smuError = "";
         string prevDir = Environment.CurrentDirectory;
         try
         {
@@ -625,10 +773,36 @@ public partial class MainWindow
             {
                 Environment.CurrentDirectory = UxtuDir;
                 var asm = Assembly.LoadFrom(UxtuDllPath);
+
+                // CRÍTICO: UXTU.dll busca "Assets\AMD\PawnIO\RyzenSMU.bin" concatenando Settings.Default.Path.
+                // Sem definir Settings.Default.Path = UxtuDir, o PawnIO lança FileNotFoundException silenciosamente!
+                var settingsType = asm.GetType("Universal_x86_Tuning_Utility.Properties.Settings");
+                var defaultProp = settingsType?.GetProperty("Default", BindingFlags.Public | BindingFlags.Static);
+                var settingsInst = defaultProp?.GetValue(null);
+                var pathProp = settingsType?.GetProperty("Path", BindingFlags.Public | BindingFlags.Instance);
+                if (settingsInst != null && pathProp != null)
+                {
+                    string curPath = pathProp.GetValue(settingsInst) as string ?? "";
+                    if (string.IsNullOrWhiteSpace(curPath))
+                    {
+                        pathProp.SetValue(settingsInst, UxtuDir);
+                    }
+                }
+
+                // CRÍTICO: Inicializa Family.setCpuFamily() e Addresses.setAddresses() antes de enviar comandos SMU
+                var famType = asm.GetType("Universal_x86_Tuning_Utility.Scripts.Family");
                 var addrType = asm.GetType("RyzenSmu.Addresses");
                 var cmdType = asm.GetType("RyzenSmu.SMUCommands");
 
-                addrType?.GetMethod("Socket_FP6_AM4", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                var famField = famType?.GetField("FAM", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                int famVal = famField != null ? Convert.ToInt32(famField.GetValue(null)) : -1;
+                if (famVal <= 0)
+                {
+                    famType?.GetMethod("setCpuFamily", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                        ?.Invoke(null, null);
+                }
+
+                addrType?.GetMethod("setAddresses", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
                     ?.Invoke(null, null);
 
                 var applyMethod = cmdType?.GetMethod("applySettings", BindingFlags.Public | BindingFlags.Static);
@@ -643,9 +817,9 @@ public partial class MainWindow
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignora falha parcial e sincroniza apuPresets.json abaixo
+            smuError = ex.InnerException?.Message ?? ex.Message;
         }
         finally
         {
@@ -676,12 +850,49 @@ public partial class MainWindow
         }
         catch { }
 
+        string autoNote = cfg.AutoReapplyCpu ? $" · Auto-reaplicação ativa ({cfg.AutoReapplySeconds}s)" : " · Auto-reaplicação desligada";
         return smuOk
-            ? $"SMU Ryzen 7 5800H atualizado em tempo real: Teto {cfg.ApuTempLimit} °C · STAPM {cfg.ApuStapmWatts} W · Slow {cfg.ApuSlowWatts} W · Fast {cfg.ApuFastWatts} W."
-            : $"Preset gravado ({cfg.ApuTempLimit} °C · {cfg.ApuStapmWatts}W / {cfg.ApuFastWatts}W). Verifique se o driver PawnIO está ativo.";
+            ? $"SMU Ryzen 7 5800H travado via PawnIO ({DateTime.Now:HH:mm:ss}): Teto {cfg.ApuTempLimit} °C · STAPM {cfg.ApuStapmWatts} W · Slow {cfg.ApuSlowWatts} W · Fast {cfg.ApuFastWatts} W{autoNote}."
+            : $"Falha ao gravar no SMU ({smuError}). Verifique se o aplicativo está rodando como Administrador e se o driver PawnIO está ativo.";
     }
 
-    // ---------------- Refrigeração Dell G15 & G-Mode (AlienFan) ----------------
+    // ---------------- Refrigeração Dell G15 & G-Mode (AlienFan + Tecla Física G) ----------------
+
+    /// <summary>Acionado quando o usuário aperta o botão físico G-Mode (Fn+F9 / F17) no teclado do Dell G15.</summary>
+    public async Task ToggleG15GModeFromPhysicalKeyAsync()
+    {
+        bool enableGMode = !_settings.G15.GModeEnabled;
+        _settings.G15.GModeEnabled = enableGMode;
+        _g15UiInitializing = true;
+        if (RbG15FanAdaptive != null) RbG15FanAdaptive.IsChecked = !enableGMode;
+        if (RbG15FanGMode != null) RbG15FanGMode.IsChecked = enableGMode;
+        _g15UiInitializing = false;
+        _settings.Save();
+
+        if (G15FanStatus != null)
+        {
+            G15FanStatus.Text = enableGMode
+                ? "Tecla física G pressionada: ativando G-Mode (Level 171 · Turbina 100%)…"
+                : "Tecla física G pressionada: voltando ao Modo Adaptativo Inteligente…";
+        }
+
+        Toast(
+            enableGMode ? "G-Mode ATIVADO (Tecla G)" : "Modo Adaptativo ATIVO (Tecla G)",
+            enableGMode ? "Level 171 · Ventoinhas em 100% (~5000 RPM)" : "Curva inteligente de 8 pontos (100% aos 78 °C)",
+            "\uE945"
+        );
+
+        try
+        {
+            string msg = await Task.Run(() => ApplyG15ThermalModeInternal(enableGMode));
+            if (G15FanStatus != null) G15FanStatus.Text = msg;
+            await RefreshG15SensorsAsync();
+        }
+        catch (Exception ex)
+        {
+            if (G15FanStatus != null) G15FanStatus.Text = $"Erro ao alternar G-Mode pela tecla física: {ex.Message}";
+        }
+    }
 
     private async void RbG15FanMode_Click(object sender, RoutedEventArgs e)
     {
@@ -810,18 +1021,26 @@ public partial class MainWindow
         return 100;
     }
 
-    /// <summary>Chamado pelo timer global de 1s: atualiza os sensores do G15, reaplica SMU a cada 15s (como no UXTU) e mantém a curva de ventoinhas ativa.</summary>
+    /// <summary>Chamado pelo timer global de 1s: atualiza os sensores do G15, reaplica SMU no intervalo configurado (como no UXTU) e mantém a curva de ventoinhas ativa.</summary>
     private void TickG15()
     {
-        // Reaplicação periódica do SMU a cada 15 segundos (impede que a BIOS da Dell resete os 29W/32W para 45W+ durante o jogo)
-        if (!_smuApplying && _settings.G15.AutoApplyOnStartup && (DateTime.UtcNow - _lastSmuReapply).TotalSeconds >= 15.0)
+        int intervalSecSmu = Math.Clamp(_settings.G15.AutoReapplySeconds, 3, 60);
+        if (!_smuApplying && _settings.G15.AutoReapplyCpu && (DateTime.UtcNow - _lastSmuReapply).TotalSeconds >= intervalSecSmu)
         {
             _smuApplying = true;
             _lastSmuReapply = DateTime.UtcNow;
             var cfgSnap = _settings.G15;
             _ = Task.Run(() =>
             {
-                try { ApplyG15CpuLimitsInternal(cfgSnap); }
+                try
+                {
+                    string msg = ApplyG15CpuLimitsInternal(cfgSnap);
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        if (G15CpuStatus != null && PageG15.IsVisible)
+                            G15CpuStatus.Text = msg;
+                    }));
+                }
                 catch { }
                 finally { _smuApplying = false; }
             });
@@ -881,6 +1100,16 @@ public partial class MainWindow
             });
 
             _lastAppliedBoost = data.lastBoost;
+
+            // Caso o firmware da placa-mãe tenha alternado o G-Mode diretamente pelo hardware, sincroniza o botão na UI
+            if (data.gmodeOn != _settings.G15.GModeEnabled)
+            {
+                _settings.G15.GModeEnabled = data.gmodeOn;
+                _g15UiInitializing = true;
+                if (RbG15FanAdaptive != null) RbG15FanAdaptive.IsChecked = !data.gmodeOn;
+                if (RbG15FanGMode != null) RbG15FanGMode.IsChecked = data.gmodeOn;
+                _g15UiInitializing = false;
+            }
 
             if (data.cpuRpm >= 0 || data.cpuTemp > 0)
             {
@@ -952,9 +1181,33 @@ public partial class MainWindow
     private void G15KbBrightSlider_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_g15UiInitializing) return;
-        if (G15KbBrightValue != null)
-            G15KbBrightValue.Text = $"{(int)Math.Round(G15KbBrightSlider.Value)} %";
-        _settings.G15.KbBrightness = (int)Math.Round(G15KbBrightSlider.Value);
+        int b = (int)Math.Round(G15KbBrightSlider.Value);
+        if (G15KbBrightValue != null) G15KbBrightValue.Text = $"{b} %";
+        if (G15KbBrightBox != null && !G15KbBrightBox.IsKeyboardFocusWithin) G15KbBrightBox.Text = b.ToString();
+        _settings.G15.KbBrightness = b;
+    }
+
+    private void G15KbBrightBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        CommitG15KbBrightBox();
+    }
+
+    private void CommitG15KbBrightBox()
+    {
+        if (_g15UiInitializing || G15KbBrightBox == null) return;
+        string clean = Regex.Replace(G15KbBrightBox.Text ?? "", @"[^\d]", "");
+        if (int.TryParse(clean, out int val))
+        {
+            val = Math.Clamp(val, 0, 100);
+            G15KbBrightSlider.Value = val;
+            G15KbBrightBox.Text = val.ToString();
+            _settings.G15.KbBrightness = val;
+            _settings.Save();
+        }
+        else
+        {
+            G15KbBrightBox.Text = ((int)Math.Round(G15KbBrightSlider.Value)).ToString();
+        }
     }
 
     private void G15KbPreset_Click(object sender, RoutedEventArgs e)
@@ -970,15 +1223,20 @@ public partial class MainWindow
     {
         if (G15KbColorPreview == null || G15KbHexBox == null) return;
         if (G15KbBrightValue != null && G15KbBrightSlider != null)
-            G15KbBrightValue.Text = $"{(int)Math.Round(G15KbBrightSlider.Value)} %";
+        {
+            int b = (int)Math.Round(G15KbBrightSlider.Value);
+            G15KbBrightValue.Text = $"{b} %";
+            if (G15KbBrightBox != null && !G15KbBrightBox.IsKeyboardFocusWithin)
+                G15KbBrightBox.Text = b.ToString();
+        }
 
         string raw = G15KbHexBox.Text.Trim();
         if (!raw.StartsWith('#')) raw = "#" + raw;
 
-        if (TryParseHexColor(raw, out byte r, out byte g, out byte b))
+        if (TryParseHexColor(raw, out byte r, out byte g, out byte bCol))
         {
-            G15KbColorPreview.Background = new SolidColorBrush(Color.FromRgb(r, g, b));
-            _settings.G15.KbColorHex = $"#{r:X2}{g:X2}{b:X2}";
+            G15KbColorPreview.Background = new SolidColorBrush(Color.FromRgb(r, g, bCol));
+            _settings.G15.KbColorHex = $"#{r:X2}{g:X2}{bCol:X2}";
         }
     }
 
@@ -994,6 +1252,7 @@ public partial class MainWindow
 
     private async void BtnG15KbApply_Click(object sender, RoutedEventArgs e)
     {
+        CommitG15KbBrightBox();
         string raw = G15KbHexBox.Text.Trim();
         if (!TryParseHexColor(raw, out byte r, out byte g, out byte b))
         {
@@ -1041,7 +1300,6 @@ public partial class MainWindow
         RunCli(AlienFxCliPath, $"lowlevel setdim={dimVal} setall={sr},{sg},{sb}", AlienToolsDir);
         return $"Iluminação aplicada nas 4 zonas: #{r:X2}{g:X2}{b:X2} · Brilho {brightnessPercent}% (RGB {sr},{sg},{sb}).";
     }
-
     // ---------------- Inicialização com o Windows & Aplicar Tudo ----------------
 
     private void ChkG15Startup_Click(object sender, RoutedEventArgs e)

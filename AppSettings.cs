@@ -63,6 +63,8 @@ public sealed class G15Settings
     public int ApuStapmWatts { get; set; } = 29;
     public int ApuSlowWatts { get; set; } = 29;
     public int ApuFastWatts { get; set; } = 32;
+    public bool AutoReapplyCpu { get; set; } = true;
+    public int AutoReapplySeconds { get; set; } = 15;
 
     // Refrigeração Dell G15 & G-Mode
     public bool GModeEnabled { get; set; } = false;

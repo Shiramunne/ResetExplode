@@ -50,6 +50,7 @@ public partial class MainWindow : Window
     private DispatcherTimer? _overlayTimer;
     private bool _overlayReady;
     private const int HotkeyId = 0x5245; // "RE"
+    private const int GModeHotkeyId = 0x5246; // Tecla física G-Mode Dell G15 (VK_F17 = 0x80)
 
     // RESET BENCH
     private readonly BenchRenderer _bench = new();
@@ -152,7 +153,9 @@ public partial class MainWindow : Window
             _overlay?.Close();
             _toast?.Close();
             _frames.Dispose();
-            UnregisterHotKey(new System.Windows.Interop.WindowInteropHelper(this).Handle, HotkeyId);
+            var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            UnregisterHotKey(h, HotkeyId);
+            UnregisterHotKey(h, GModeHotkeyId);
             ShutdownInteg();
             _launchCts?.Cancel();
             _monitor.Dispose();

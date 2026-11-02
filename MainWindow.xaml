@@ -3285,19 +3285,19 @@
                                     </Border>
                                 </UniformGrid>
 
-                                <TextBlock Text="SELETOR DE MODO DAS VENTOINHAS" Style="{StaticResource Label}"/>
+                                <TextBlock Text="SELETOR DE MODO DAS VENTOINHAS (BOTÃO FÍSICO 'G' DO TECLADO OU PAINEL)" Style="{StaticResource Label}"/>
                                 <WrapPanel Margin="0,2,0,10">
                                     <RadioButton x:Name="RbG15FanAdaptive" Style="{StaticResource Chip}" GroupName="G15FanMode"
                                                  Content="Modo Adaptativo Inteligente (Anti-Throttle · 100% aos 78°C)" IsChecked="True"
                                                  Click="RbG15FanMode_Click"/>
                                     <RadioButton x:Name="RbG15FanGMode" Style="{StaticResource Chip}" GroupName="G15FanMode"
-                                                 Content="G-Mode · Força Bruta (Level 171 · Turbina 100%)"
+                                                 Content="G-Mode · Força Bruta (Level 171 · Turbina 100% · Tecla G)"
                                                  Click="RbG15FanMode_Click"/>
                                     <Button x:Name="BtnG15FanCalibrate" Style="{StaticResource OutlineButton}" Content="RECALIBRAR CURVA ADAPTATIVA"
                                             Padding="14,5" FontSize="11.5" Margin="6,0,0,6" Click="BtnG15FanCalibrate_Click"/>
                                 </WrapPanel>
                                 <TextBlock x:Name="G15FanStatus" Foreground="{DynamicResource Muted}" FontSize="12" TextWrapping="Wrap"
-                                           Text="Curva progressiva anti-throttling ativa (lê sensor real do chip RTX 3060 + Ryzen): ≤48°C (0%), 54°C (25%), 60°C (45%), 66°C (68%), 72°C (85%), ≥78°C (100%)."/>
+                                           Text="Tecla física G (Fn+F9 / F17) integrada: aperte no teclado a qualquer momento (inclusive dentro do jogo) ou clique acima para alternar entre Modo Adaptativo e G-Mode 100%."/>
                             </StackPanel>
                         </Border>
 
@@ -3306,7 +3306,7 @@
                             <StackPanel>
                                 <TextBlock Text="PLACA DE VÍDEO · NVIDIA GEFORCE RTX 3060 (CURVA DE TENSÃO mV &amp; CLOCK)" Style="{StaticResource Label}"/>
                                 <TextBlock Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,0,0,14">
-                                    Selecione o perfil desejado e ajuste os sliders se necessário. Ambos os perfis contam com sliders completos exibindo a tensão exata em milivolts (mV) e frequência (MHz).
+                                    Selecione o perfil desejado e ajuste pelos sliders ou digite o valor exato nas caixas numéricas ao lado (pressione Enter ou clique fora para confirmar).
                                 </TextBlock>
 
                                 <WrapPanel Margin="0,0,0,14">
@@ -3337,43 +3337,72 @@
                                         <TextBlock x:Name="G15MemValue" Grid.Column="2" Text="+0 MHz" FontFamily="{StaticResource Mono}" FontSize="12"
                                                    Foreground="#FFFFFF" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                         <Slider x:Name="G15MemSlider" Grid.Column="3" Style="{StaticResource G15BlueSlider}"
-                                                Minimum="-500" Maximum="1000" Value="0" TickFrequency="25" IsSnapToTickEnabled="True"
+                                                Minimum="-500" Maximum="1000" Value="0" TickFrequency="25" IsSnapToTickEnabled="False"
                                                 ValueChanged="G15GpuSlider_Changed"/>
 
                                         <TextBlock Grid.Column="5" Text="Core / Curva (mV)" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                         <TextBlock x:Name="G15BarCurveSummary" Grid.Column="6" Text="800 mV · 1785 MHz" FontFamily="{StaticResource Mono}" FontSize="12"
                                                    Foreground="#38ACEC" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                         <Slider x:Name="G15VoltSlider" Grid.Column="7" Style="{StaticResource G15BlueSlider}"
-                                                Minimum="700" Maximum="1050" Value="800" TickFrequency="5" IsSnapToTickEnabled="True"
+                                                Minimum="700" Maximum="1050" Value="800" TickFrequency="5" IsSnapToTickEnabled="False"
                                                 ValueChanged="G15GpuSlider_Changed"/>
                                     </Grid>
                                 </Border>
 
-                                <!-- Ajuste fino de Tensão (mV) e Clock Alvo / Offset da Curva -->
+                                <!-- Ajuste fino de Memória, Tensão (mV) e Clock Alvo / Offset da Curva com caixas digitáveis (estilo UXTU) -->
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="24"/>
+                                        <ColumnDefinition Width="20"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="20"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0">
-                                        <Grid>
-                                            <TextBlock Text="TENSÃO DA CURVA (mV)" Style="{StaticResource Label}"/>
-                                            <TextBlock x:Name="G15VoltValue" Text="800 mV" FontFamily="{StaticResource Mono}" HorizontalAlignment="Right"/>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="CLOCK DE MEMÓRIA VRAM (MHz)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBox x:Name="G15MemBox" Width="68" Padding="6,4" Text="0" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                                         TextAlignment="Right" VerticalAlignment="Center"
+                                                         KeyDown="G15NumericBox_KeyDown" LostFocus="G15GpuBox_LostFocus"/>
+                                                <TextBlock Text=" MHz" FontFamily="{StaticResource Mono}" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                                            </StackPanel>
                                         </Grid>
                                         <TextBlock Foreground="{DynamicResource Faint}" FontSize="11" TextWrapping="Wrap">
-                                            Define o ponto de tensão (em milivolts) onde a curva estabiliza o clock máximo da GPU.
+                                            Offset da VRAM (-500 a +1000 MHz). Recomendado: 0 MHz para menor temperatura.
                                         </TextBlock>
                                     </StackPanel>
 
                                     <StackPanel Grid.Column="2">
-                                        <Grid>
-                                            <TextBlock x:Name="G15CoreLabelTitle" Text="CLOCK ALVO NA CURVA (MHz)" Style="{StaticResource Label}"/>
-                                            <TextBlock x:Name="G15CoreValue" Text="1785 MHz" FontFamily="{StaticResource Mono}" HorizontalAlignment="Right"/>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="TENSÃO DA CURVA (mV)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBox x:Name="G15VoltBox" Width="68" Padding="6,4" Text="800" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                                         TextAlignment="Right" VerticalAlignment="Center"
+                                                         KeyDown="G15NumericBox_KeyDown" LostFocus="G15GpuBox_LostFocus"/>
+                                                <TextBlock Text=" mV" FontFamily="{StaticResource Mono}" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="G15VoltValue" Text="800 mV" Visibility="Collapsed"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Foreground="{DynamicResource Faint}" FontSize="11" TextWrapping="Wrap">
+                                            Ponto de tensão (700 a 1050 mV) onde a curva trava o clock máximo da GPU.
+                                        </TextBlock>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="4">
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock x:Name="G15CoreLabelTitle" Text="CLOCK ALVO NA CURVA (MHz)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBox x:Name="G15CoreBox" Width="68" Padding="6,4" Text="1785" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                                         TextAlignment="Right" VerticalAlignment="Center"
+                                                         KeyDown="G15NumericBox_KeyDown" LostFocus="G15GpuBox_LostFocus"/>
+                                                <TextBlock Text=" MHz" FontFamily="{StaticResource Mono}" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="G15CoreValue" Text="1785 MHz" Visibility="Collapsed"/>
+                                            </StackPanel>
                                         </Grid>
                                         <Slider x:Name="G15CoreSlider" Style="{StaticResource G15BlueSlider}"
-                                                Minimum="1500" Maximum="2100" Value="1785" TickFrequency="15" IsSnapToTickEnabled="True"
+                                                Minimum="1500" Maximum="2100" Value="1785" TickFrequency="15" IsSnapToTickEnabled="False"
                                                 ValueChanged="G15GpuSlider_Changed"/>
                                     </StackPanel>
                                 </Grid>
@@ -3392,12 +3421,12 @@
                         <!-- 3. PROCESSADOR · AMD RYZEN 7 5800H (UXTU / SMU) -->
                         <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
                             <StackPanel>
-                                <TextBlock Text="PROCESSADOR · AMD RYZEN 7 5800H (LIMITES TÉRMICOS &amp; POTÊNCIA SMU · AUTO-REAPLICAÇÃO 15s)" Style="{StaticResource Label}"/>
+                                <TextBlock Text="PROCESSADOR · AMD RYZEN 7 5800H (LIMITES TÉRMICOS &amp; POTÊNCIA SMU · AUTO-REAPLICAÇÃO UXTU)" Style="{StaticResource Label}"/>
                                 <TextBlock Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,0,0,16">
-                                    Comunica diretamente com o SMU do Ryzen 7 5800H via driver PawnIO e reaplica os limites a cada 15 segundos (como no UXTU) para impedir que a BIOS da Dell resete a potência durante o jogo.
+                                    Comunica diretamente com o SMU do Ryzen 7 5800H via driver PawnIO e reaplica os limites automaticamente no intervalo configurado (padrão: 15s, igual ao UXTU) para impedir que a BIOS da Dell derrube a trava de 88 °C durante o jogo.
                                 </TextBlock>
 
-                                <Grid Margin="0,0,0,12">
+                                <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="24"/>
@@ -3410,9 +3439,15 @@
                                     </Grid.RowDefinitions>
 
                                     <StackPanel Grid.Row="0" Grid.Column="0">
-                                        <Grid>
-                                            <TextBlock Text="LIMITE DE TEMPERATURA APU (°C)" Style="{StaticResource Label}"/>
-                                            <TextBlock x:Name="G15CpuTempValue" Text="88 °C" FontFamily="{StaticResource Mono}" HorizontalAlignment="Right"/>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="LIMITE DE TEMPERATURA APU (°C)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBox x:Name="G15CpuTempBox" Width="64" Padding="6,4" Text="88" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                                         TextAlignment="Right" VerticalAlignment="Center"
+                                                         KeyDown="G15NumericBox_KeyDown" LostFocus="G15CpuBox_LostFocus"/>
+                                                <TextBlock Text=" °C" FontFamily="{StaticResource Mono}" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="G15CpuTempValue" Text="88 °C" Visibility="Collapsed"/>
+                                            </StackPanel>
                                         </Grid>
                                         <Slider x:Name="G15CpuTempSlider" Style="{StaticResource G15BlueSlider}"
                                                 Minimum="65" Maximum="95" Value="88" TickFrequency="1" IsSnapToTickEnabled="True"
@@ -3420,9 +3455,15 @@
                                     </StackPanel>
 
                                     <StackPanel Grid.Row="0" Grid.Column="2">
-                                        <Grid>
-                                            <TextBlock Text="POTÊNCIA SUSTENTADA · STAPM (W)" Style="{StaticResource Label}"/>
-                                            <TextBlock x:Name="G15CpuStapmValue" Text="29 W" FontFamily="{StaticResource Mono}" HorizontalAlignment="Right"/>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="POTÊNCIA SUSTENTADA · STAPM (W)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBox x:Name="G15CpuStapmBox" Width="64" Padding="6,4" Text="29" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                                         TextAlignment="Right" VerticalAlignment="Center"
+                                                         KeyDown="G15NumericBox_KeyDown" LostFocus="G15CpuBox_LostFocus"/>
+                                                <TextBlock Text=" W" FontFamily="{StaticResource Mono}" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="G15CpuStapmValue" Text="29 W" Visibility="Collapsed"/>
+                                            </StackPanel>
                                         </Grid>
                                         <Slider x:Name="G15CpuStapmSlider" Style="{StaticResource G15BlueSlider}"
                                                 Minimum="15" Maximum="54" Value="29" TickFrequency="1" IsSnapToTickEnabled="True"
@@ -3430,9 +3471,15 @@
                                     </StackPanel>
 
                                     <StackPanel Grid.Row="2" Grid.Column="0">
-                                        <Grid>
-                                            <TextBlock Text="SLOW POWER LIMIT (W)" Style="{StaticResource Label}"/>
-                                            <TextBlock x:Name="G15CpuSlowValue" Text="29 W" FontFamily="{StaticResource Mono}" HorizontalAlignment="Right"/>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="SLOW POWER LIMIT (W)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBox x:Name="G15CpuSlowBox" Width="64" Padding="6,4" Text="29" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                                         TextAlignment="Right" VerticalAlignment="Center"
+                                                         KeyDown="G15NumericBox_KeyDown" LostFocus="G15CpuBox_LostFocus"/>
+                                                <TextBlock Text=" W" FontFamily="{StaticResource Mono}" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="G15CpuSlowValue" Text="29 W" Visibility="Collapsed"/>
+                                            </StackPanel>
                                         </Grid>
                                         <Slider x:Name="G15CpuSlowSlider" Style="{StaticResource G15BlueSlider}"
                                                 Minimum="15" Maximum="54" Value="29" TickFrequency="1" IsSnapToTickEnabled="True"
@@ -3440,9 +3487,15 @@
                                     </StackPanel>
 
                                     <StackPanel Grid.Row="2" Grid.Column="2">
-                                        <Grid>
-                                            <TextBlock Text="FAST POWER LIMIT · BOOST (W)" Style="{StaticResource Label}"/>
-                                            <TextBlock x:Name="G15CpuFastValue" Text="32 W" FontFamily="{StaticResource Mono}" HorizontalAlignment="Right"/>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="FAST POWER LIMIT · BOOST (W)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBox x:Name="G15CpuFastBox" Width="64" Padding="6,4" Text="32" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                                         TextAlignment="Right" VerticalAlignment="Center"
+                                                         KeyDown="G15NumericBox_KeyDown" LostFocus="G15CpuBox_LostFocus"/>
+                                                <TextBlock Text=" W" FontFamily="{StaticResource Mono}" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="G15CpuFastValue" Text="32 W" Visibility="Collapsed"/>
+                                            </StackPanel>
                                         </Grid>
                                         <Slider x:Name="G15CpuFastSlider" Style="{StaticResource G15BlueSlider}"
                                                 Minimum="20" Maximum="65" Value="32" TickFrequency="1" IsSnapToTickEnabled="True"
@@ -3450,10 +3503,42 @@
                                     </StackPanel>
                                 </Grid>
 
+                                <!-- Controle de Auto-Reaplicação Periódica idêntico ao UXTU -->
+                                <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,14">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="320"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <CheckBox x:Name="ChkG15CpuAutoReapply" Content="Reaplicar limites na CPU automaticamente (impede reset da BIOS / EC)"
+                                                      IsChecked="True" Click="ChkG15CpuAutoReapply_Click"/>
+                                            <TextBlock Foreground="{DynamicResource Faint}" FontSize="11" Margin="26,4,0,0" TextWrapping="Wrap">
+                                                No Dell G15 5515, a BIOS tenta remover o teto de 88 °C após alguns segundos de carga. Manter ativo garante que o processador nunca passe do limite.
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <Grid Margin="0,0,0,6">
+                                                <TextBlock Text="INTERVALO DE REAPLICAÇÃO (s)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    <TextBox x:Name="G15CpuIntervalBox" Width="56" Padding="6,4" Text="15" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                                             TextAlignment="Right" VerticalAlignment="Center"
+                                                             KeyDown="G15NumericBox_KeyDown" LostFocus="G15CpuBox_LostFocus"/>
+                                                    <TextBlock Text=" s" FontFamily="{StaticResource Mono}" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Grid>
+                                            <Slider x:Name="G15CpuIntervalSlider" Style="{StaticResource G15BlueSlider}"
+                                                    Minimum="3" Maximum="60" Value="15" TickFrequency="1" IsSnapToTickEnabled="True"
+                                                    ValueChanged="G15CpuSlider_Changed"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
                                 <WrapPanel Margin="0,4,0,0">
                                     <Button x:Name="BtnG15CpuApply" Style="{StaticResource PrimaryButton}" Content="APLICAR LIMITES CPU"
                                             Padding="20,9" Margin="0,0,10,8" Click="BtnG15CpuApply_Click"/>
-                                    <Button Style="{StaticResource OutlineButton}" Content="PRESET FRIO ORIGINAL (88°C · 29W / 32W)"
+                                    <Button Style="{StaticResource OutlineButton}" Content="PRESET FRIO ORIGINAL (88°C · 29W / 32W · 15s)"
                                             Padding="20,9" Margin="0,0,10,8" Click="BtnG15CpuReset_Click"/>
                                 </WrapPanel>
                                 <TextBlock x:Name="G15CpuStatus" Foreground="{DynamicResource Muted}" FontSize="12" TextWrapping="Wrap"
@@ -3494,12 +3579,18 @@
                                     </WrapPanel>
                                 </Grid>
 
-                                <Grid>
-                                    <TextBlock Text="BRILHO DO TECLADO (%)" Style="{StaticResource Label}"/>
-                                    <TextBlock x:Name="G15KbBrightValue" Text="100 %" FontFamily="{StaticResource Mono}" HorizontalAlignment="Right"/>
+                                <Grid Margin="0,0,0,6">
+                                    <TextBlock Text="BRILHO DO TECLADO (%)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <TextBox x:Name="G15KbBrightBox" Width="64" Padding="6,4" Text="100" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                                 TextAlignment="Right" VerticalAlignment="Center"
+                                                 KeyDown="G15NumericBox_KeyDown" LostFocus="G15KbBrightBox_LostFocus"/>
+                                        <TextBlock Text=" %" FontFamily="{StaticResource Mono}" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="G15KbBrightValue" Text="100 %" Visibility="Collapsed"/>
+                                    </StackPanel>
                                 </Grid>
                                 <Slider x:Name="G15KbBrightSlider" Style="{StaticResource G15BlueSlider}"
-                                        Minimum="0" Maximum="100" Value="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                                        Minimum="0" Maximum="100" Value="100" TickFrequency="5" IsSnapToTickEnabled="False"
                                         Margin="0,0,0,14" ValueChanged="G15KbBrightSlider_Changed"/>
 
                                 <Button x:Name="BtnG15KbApply" Style="{StaticResource PrimaryButton}" Content="APLICAR ILUMINAÇÃO"
