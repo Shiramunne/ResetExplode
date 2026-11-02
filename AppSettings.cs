@@ -48,21 +48,21 @@ public sealed class G15Settings
 {
     public int ActiveGpuProfile { get; set; } = 1;
 
-    // Perfil 1 (Otimizado · Undervolt 850 mV)
-    public int P1MemClockMhz { get; set; } = 500;
-    public int P1VoltageMv { get; set; } = 850;
-    public int P1CoreClockMhz { get; set; } = 1860;
+    // Perfil 1 (Otimizado · Undervolt 800 mV @ 1785 MHz)
+    public int P1MemClockMhz { get; set; } = 0;
+    public int P1VoltageMv { get; set; } = 800;
+    public int P1CoreClockMhz { get; set; } = 1785;
 
     // Perfil 2 (Compatibilidade · 1000 mV)
     public int P2MemClockMhz { get; set; } = 0;
     public int P2VoltageMv { get; set; } = 1000;
     public int P2CoreOffsetMhz { get; set; } = 950;
 
-    // CPU AMD Ryzen 7 5800H (SMU)
+    // CPU AMD Ryzen 7 5800H (SMU · Config Fria Estável 29W / 32W)
     public int ApuTempLimit { get; set; } = 88;
-    public int ApuStapmWatts { get; set; } = 35;
-    public int ApuSlowWatts { get; set; } = 35;
-    public int ApuFastWatts { get; set; } = 42;
+    public int ApuStapmWatts { get; set; } = 29;
+    public int ApuSlowWatts { get; set; } = 29;
+    public int ApuFastWatts { get; set; } = 32;
 
     // Refrigeração Dell G15 & G-Mode
     public bool GModeEnabled { get; set; } = false;

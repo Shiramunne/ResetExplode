@@ -29,14 +29,17 @@ public partial class MainWindow
     private const string ScheduledTaskName = "AraujoControlSuite";
 
     // Curva progressiva calibrada de 8 pontos: (Temp °C, Boost %)
+    // Silenciosa em repouso (<=48°C), mas atinge 100% aos 78°C para impedir que a RTX 3060 atinja o limite de thermal throttle (86°C) no heatpipe compartilhado do G15.
     private static readonly (int Temp, int Boost)[] AdaptiveCurvePoints =
     {
-        (0, 0), (50, 0), (58, 15), (68, 35), (75, 55), (82, 80), (87, 100), (100, 100)
+        (0, 0), (48, 0), (54, 25), (60, 45), (66, 68), (72, 85), (78, 100), (100, 100)
     };
 
     private bool _g15UiInitializing = true;
     private bool _g15Polling;
+    private bool _smuApplying;
     private DateTime _lastG15Poll = DateTime.MinValue;
+    private DateTime _lastSmuReapply = DateTime.MinValue;
     private int _lastAppliedBoost = -1;
 
     private void InitG15()
@@ -69,7 +72,7 @@ public partial class MainWindow
             UpdateG15KbPreview();
 
             // 5. Inicialização e Automação
-            if (cfg.StartWithWindows)
+            if (cfg.StartWithWindows && !IsG15ScheduledTaskRegistered())
             {
                 SetG15ScheduledTask(true, cfg.StartMinimized);
             }
@@ -227,9 +230,9 @@ public partial class MainWindow
         var cfg = _settings.G15;
         if (cfg.ActiveGpuProfile == 1)
         {
-            cfg.P1MemClockMhz = 500;
-            cfg.P1VoltageMv = 850;
-            cfg.P1CoreClockMhz = 1860;
+            cfg.P1MemClockMhz = 0;
+            cfg.P1VoltageMv = 800;
+            cfg.P1CoreClockMhz = 1785;
         }
         else
         {
@@ -271,7 +274,15 @@ public partial class MainWindow
             string? gpuCfgPath = FindAfterburnerGpuCfg();
             if (gpuCfgPath != null && File.Exists(gpuCfgPath))
             {
-                UpdateAfterburnerCfgFile(gpuCfgPath, profile, memMhz, voltMv, coreVal);
+                string bakPath = gpuCfgPath + ".bak";
+                if (profile == 1 && voltMv == 800 && coreVal == 1785 && memMhz == 0 && File.Exists(bakPath))
+                {
+                    File.Copy(bakPath, gpuCfgPath, overwrite: true);
+                }
+                else
+                {
+                    UpdateAfterburnerCfgFile(gpuCfgPath, profile, memMhz, voltMv, coreVal);
+                }
             }
         }
         catch { }
@@ -279,11 +290,11 @@ public partial class MainWindow
         if (profile == 1)
         {
             return nvapiOk
-                ? $"Perfil 1 (Otimizado) aplicado direto no driver NVIDIA (NVAPI nativo, sem Afterburner): Curva travada em {coreVal} MHz @ {voltMv} mV · VRAM {(memMhz >= 0 ? "+" : "")}{memMhz} MHz."
+                ? $"Perfil 1 (Undervolt Frio) aplicado direto no driver NVIDIA (NVAPI nativo): Teto {coreVal} MHz @ {voltMv} mV · VRAM {(memMhz >= 0 ? "+" : "")}{memMhz} MHz."
                 : $"Perfil 1 ({coreVal} MHz @ {voltMv} mV): {nvapiDetail}";
         }
         return nvapiOk
-            ? $"Perfil 2 (Compatibilidade) aplicado direto no driver NVIDIA (NVAPI nativo, sem Afterburner): {voltMv} mV · Offset +{coreVal} MHz · VRAM {(memMhz >= 0 ? "+" : "")}{memMhz} MHz."
+            ? $"Perfil 2 (Compatibilidade) aplicado direto no driver NVIDIA (NVAPI nativo): {voltMv} mV · Offset +{coreVal} MHz · VRAM {(memMhz >= 0 ? "+" : "")}{memMhz} MHz."
             : $"Perfil 2 ({voltMv} mV · +{coreVal} MHz): {nvapiDetail}";
     }
 
@@ -368,7 +379,10 @@ public partial class MainWindow
 
             int rPstate = setPstates(gpu, pstateBuf);
 
-            // 4. Se Perfil 1 (Undervolt por Curva V/F), calcula e grava cada ponto na ClockBoostTable
+            // 4. Se Perfil 1 (Undervolt Frio por Curva V/F), reproduz exatamente a geometria térmica original:
+            //    - <= 725 mV: mantido em 1267 MHz (ou base se menor)
+            //    - 725 mV até voltMv (ex.: 800 mV): rampa linear controlada de 1267 MHz até coreVal (ex.: 1785 MHz)
+            //    - >= voltMv: teto plano travado em coreVal (deltas negativos nos pontos altos para impedir aquecimento)
             if (profile == 1)
             {
                 byte[] vfpBuf = new byte[7208];
@@ -381,22 +395,7 @@ public partial class MainWindow
                 }
 
                 int targetKhz = coreVal * 1000;
-                uint targetVoltUv = (uint)(voltMv * 1000);
-
-                // Descobre a frequência base no ponto de tensão escolhido (ex.: 850 mV)
-                int baseAtPivotKhz = 1665000;
-                for (int i = 0; i < 255; i++)
-                {
-                    uint fKhz = BitConverter.ToUInt32(vfpBuf, 68 + i * 28 + 4);
-                    uint vUv = BitConverter.ToUInt32(vfpBuf, 68 + i * 28 + 8);
-                    if (fKhz > 0 && vUv >= targetVoltUv)
-                    {
-                        baseAtPivotKhz = (int)fKhz;
-                        break;
-                    }
-                }
-
-                int pivotDeltaKhz = Math.Max(0, targetKhz - baseAtPivotKhz);
+                const int floorKhz = 1267000;
 
                 for (int i = 0; i < 255; i++)
                 {
@@ -405,23 +404,22 @@ public partial class MainWindow
                     if (baseFreqKhz == 0 || voltUv == 0) continue;
 
                     double ptMv = voltUv / 1000.0;
-                    int deltaKhz;
+                    int desiredFreqKhz;
                     if (ptMv >= voltMv)
                     {
-                        // Trava todos os pontos >= voltMv (ex.: 850 mV até 1093 mV) exatamente em targetKhz (ex.: 1860 MHz)
-                        deltaKhz = targetKhz - (int)baseFreqKhz;
+                        desiredFreqKhz = targetKhz;
                     }
-                    else if (ptMv >= 700.0)
+                    else if (ptMv > 725.0)
                     {
-                        // Rampa progressiva suave entre 700 mV e voltMv
-                        double t = (ptMv - 700.0) / Math.Max(25.0, voltMv - 700.0);
-                        deltaKhz = (int)Math.Round(t * pivotDeltaKhz);
+                        double t = (ptMv - 725.0) / Math.Max(15.0, voltMv - 725.0);
+                        desiredFreqKhz = (int)Math.Round(floorKhz + t * (targetKhz - floorKhz));
                     }
                     else
                     {
-                        deltaKhz = 0;
+                        desiredFreqKhz = Math.Min((int)baseFreqKhz, floorKhz);
                     }
 
+                    int deltaKhz = desiredFreqKhz - (int)baseFreqKhz;
                     BitConverter.TryWriteBytes(tableBuf.AsSpan(68 + i * 36 + 20, 4), deltaKhz);
                 }
 
@@ -483,24 +481,21 @@ public partial class MainWindow
                 {
                     if (v >= voltMv)
                     {
-                        // Trava o teto de clock exatamente em coreVal (ex.: 1860 MHz) a partir de voltMv (ex.: 850 mV)
                         newDelta = coreVal - baseF;
                     }
-                    else if (v >= 700f)
+                    else if (v > 725f)
                     {
-                        // Rampa progressiva suave entre 700 mV e voltMv
-                        float targetDeltaAtPivot = Math.Max(0f, coreVal - 1665f);
-                        float t = (v - 700f) / Math.Max(25f, voltMv - 700f);
-                        newDelta = MathF.Round(t * targetDeltaAtPivot);
+                        float t = (v - 725f) / Math.Max(15f, voltMv - 725f);
+                        float desiredF = 1267f + t * (coreVal - 1267f);
+                        newDelta = MathF.Round(desiredF - baseF);
                     }
                     else
                     {
-                        newDelta = 0f;
+                        newDelta = Math.Min(0f, 1267f - baseF);
                     }
                 }
                 else
                 {
-                    // Perfil 2: offset uniforme
                     newDelta = coreVal;
                 }
 
@@ -512,7 +507,7 @@ public partial class MainWindow
             secContent = Regex.Replace(secContent, @"VFCurve\s*=\s*[0-9A-Fa-f]+", $"VFCurve = {newHex}");
         }
 
-        int coreBoostKhz = profile == 1 ? 0 : coreVal * 1000;
+        int coreBoostKhz = profile == 1 ? -502296 : coreVal * 1000;
         int memBoostKhz = memMhz * 1000;
         secContent = Regex.Replace(secContent, @"CoreClkBoost\s*=\s*-?\d*", $"CoreClkBoost = {coreBoostKhz}");
         secContent = Regex.Replace(secContent, @"MemClkBoost\s*=\s*-?\d*", $"MemClkBoost = {memBoostKhz}");
@@ -586,6 +581,7 @@ public partial class MainWindow
         try
         {
             _settings.Save();
+            _lastSmuReapply = DateTime.UtcNow;
             string msg = await Task.Run(() => ApplyG15CpuLimitsInternal(_settings.G15));
             G15CpuStatus.Text = msg;
         }
@@ -603,20 +599,20 @@ public partial class MainWindow
     {
         var cfg = _settings.G15;
         cfg.ApuTempLimit = 88;
-        cfg.ApuStapmWatts = 35;
-        cfg.ApuSlowWatts = 35;
-        cfg.ApuFastWatts = 42;
+        cfg.ApuStapmWatts = 29;
+        cfg.ApuSlowWatts = 29;
+        cfg.ApuFastWatts = 32;
 
         _g15UiInitializing = true;
         G15CpuTempSlider.Value = 88;
-        G15CpuStapmSlider.Value = 35;
-        G15CpuSlowSlider.Value = 35;
-        G15CpuFastSlider.Value = 42;
+        G15CpuStapmSlider.Value = 29;
+        G15CpuSlowSlider.Value = 29;
+        G15CpuFastSlider.Value = 32;
         _g15UiInitializing = false;
 
         UpdateG15CpuLabels();
         _settings.Save();
-        G15CpuStatus.Text = "Preset recomendado carregado (88 °C · 35W STAPM · 35W Slow · 42W Fast). Clique em APLICAR LIMITES CPU.";
+        G15CpuStatus.Text = "Preset frio original carregado (88 °C · 29W STAPM · 29W Slow · 32W Fast). Clique em APLICAR LIMITES CPU.";
     }
 
     private static string ApplyG15CpuLimitsInternal(G15Settings cfg)
@@ -765,20 +761,33 @@ public partial class MainWindow
                 k.SetValue("DisableAWCC", 1, RegistryValueKind.DWord);
             }
 
-            byte[] curveBytes = new byte[AdaptiveCurvePoints.Length * 2];
+            byte[] cpuCurveBytes = new byte[AdaptiveCurvePoints.Length * 2];
             for (int i = 0; i < AdaptiveCurvePoints.Length; i++)
             {
-                curveBytes[i * 2] = (byte)AdaptiveCurvePoints[i].Temp;
-                curveBytes[i * 2 + 1] = (byte)AdaptiveCurvePoints[i].Boost;
+                cpuCurveBytes[i * 2] = (byte)AdaptiveCurvePoints[i].Temp;
+                cpuCurveBytes[i * 2 + 1] = (byte)AdaptiveCurvePoints[i].Boost;
+            }
+
+            // O Sensor 262 ("GPU Internal Thermistor" da placa-mãe Dell) mede ~15°C abaixo do die real da RTX 3060.
+            // Compensamos a curva do Sensor 262 para atingir 100% aos 65°C do termistor (~80°C no chip da GPU).
+            (int Temp, int Boost)[] gpuBoardCurve =
+            {
+                (0, 0), (42, 0), (48, 30), (54, 55), (60, 80), (65, 100), (100, 100)
+            };
+            byte[] gpuCurveBytes = new byte[gpuBoardCurve.Length * 2];
+            for (int i = 0; i < gpuBoardCurve.Length; i++)
+            {
+                gpuCurveBytes[i * 2] = (byte)gpuBoardCurve[i].Temp;
+                gpuCurveBytes[i * 2 + 1] = (byte)gpuBoardCurve[i].Boost;
             }
 
             using var ks = Registry.CurrentUser.CreateSubKey(@"Software\Alienfan\Sensors", true);
             if (ks != null)
             {
-                foreach (string sensorPair in new[] { "Fan-0-257", "Fan-0-262", "Fan-1-257", "Fan-1-262" })
-                {
-                    ks.SetValue(sensorPair, curveBytes, RegistryValueKind.Binary);
-                }
+                ks.SetValue("Fan-0-257", cpuCurveBytes, RegistryValueKind.Binary);
+                ks.SetValue("Fan-1-257", cpuCurveBytes, RegistryValueKind.Binary);
+                ks.SetValue("Fan-0-262", gpuCurveBytes, RegistryValueKind.Binary);
+                ks.SetValue("Fan-1-262", gpuCurveBytes, RegistryValueKind.Binary);
             }
         }
         catch { }
@@ -801,11 +810,25 @@ public partial class MainWindow
         return 100;
     }
 
-    /// <summary>Chamado pelo timer global de 1s: atualiza os sensores do G15 e mantém a curva adaptativa autônoma.</summary>
+    /// <summary>Chamado pelo timer global de 1s: atualiza os sensores do G15, reaplica SMU a cada 15s (como no UXTU) e mantém a curva de ventoinhas ativa.</summary>
     private void TickG15()
     {
+        // Reaplicação periódica do SMU a cada 15 segundos (impede que a BIOS da Dell resete os 29W/32W para 45W+ durante o jogo)
+        if (!_smuApplying && _settings.G15.AutoApplyOnStartup && (DateTime.UtcNow - _lastSmuReapply).TotalSeconds >= 15.0)
+        {
+            _smuApplying = true;
+            _lastSmuReapply = DateTime.UtcNow;
+            var cfgSnap = _settings.G15;
+            _ = Task.Run(() =>
+            {
+                try { ApplyG15CpuLimitsInternal(cfgSnap); }
+                catch { }
+                finally { _smuApplying = false; }
+            });
+        }
+
         if (_g15Polling) return;
-        double intervalSec = PageG15.IsVisible ? 2.0 : 4.0;
+        double intervalSec = PageG15.IsVisible ? 2.0 : 3.0;
         if ((DateTime.UtcNow - _lastG15Poll).TotalSeconds < intervalSec) return;
         _ = RefreshG15SensorsAsync();
     }
@@ -821,6 +844,11 @@ public partial class MainWindow
             bool wantGMode = _settings.G15.GModeEnabled;
             int lastBoost = _lastAppliedBoost;
 
+            // Lê a temperatura real do die da CPU (Tctl/Tdie) e da GPU (RTX 3060 Core) direto do LibreHardwareMonitor,
+            // pois o "GPU Internal Thermistor" da placa-mãe Dell mede ~18°C abaixo do chip da RTX 3060!
+            int lhmCpuTemp = _monitor.CpuTemperature is float ct && ct > 0 ? (int)Math.Round(ct) : -1;
+            int lhmGpuTemp = MainGpuTemp() is float gt && gt > 0 ? (int)Math.Round(gt) : -1;
+
             var data = await Task.Run(() =>
             {
                 string output = RunCli(AlienFanCliPath, "rpm getfans getpower gmode temp", AlienToolsDir);
@@ -828,21 +856,19 @@ public partial class MainWindow
                 int gpuRpm = ParseCliInt(output, @"Fan GPU 1 RPM:\s*(\d+)");
                 int cpuBoost = ParseCliInt(output, @"Fan CPU 0 boost:\s*(\d+)");
                 int gpuBoost = ParseCliInt(output, @"Fan GPU 1 boost:\s*(\d+)");
-                int cpuTemp = ParseCliInt(output, @"CPU Internal Thermistor:\s*(\d+)");
-                int gpuTemp = ParseCliInt(output, @"GPU Internal Thermistor:\s*(\d+)");
+                int cliCpuTemp = ParseCliInt(output, @"CPU Internal Thermistor:\s*(\d+)");
+                int cliGpuTemp = ParseCliInt(output, @"GPU Internal Thermistor:\s*(\d+)");
                 bool gmodeOn = Regex.IsMatch(output, @"G-mode is On", RegexOptions.IgnoreCase);
                 string powerMode = Regex.Match(output, @"Power mode:\s*([^\r\n]+)").Groups[1].Value.Trim();
 
-                // Se estamos em Modo Adaptativo e o alienfx-gui não estiver rodando, a própria Araújo Control Suite
-                // controla os ventiladores diretamente pela curva de 8 pontos!
-                bool alienFxGuiRunning = Process.GetProcessesByName("alienfx-gui").Length > 0 ||
-                                         Process.GetProcessesByName("alienfan-gui").Length > 0;
+                int cpuTemp = Math.Max(cliCpuTemp, lhmCpuTemp);
+                int gpuTemp = Math.Max(cliGpuTemp, lhmGpuTemp);
 
-                if (!wantGMode && !gmodeOn && !alienFxGuiRunning && (cpuTemp > 0 || gpuTemp > 0))
+                if (!wantGMode && !gmodeOn && (cpuTemp > 0 || gpuTemp > 0))
                 {
                     int maxTemp = Math.Max(cpuTemp, gpuTemp);
                     int targetBoost = EvaluateAdaptiveBoost(maxTemp);
-                    if (Math.Abs(targetBoost - lastBoost) >= 3 || Math.Abs(targetBoost - cpuBoost) >= 5)
+                    if (Math.Abs(targetBoost - lastBoost) >= 3 || Math.Abs(targetBoost - cpuBoost) >= 5 || Math.Abs(targetBoost - gpuBoost) >= 5)
                     {
                         RunCli(AlienFanCliPath, $"setpower=0 setfans={targetBoost},{targetBoost}", AlienToolsDir);
                         cpuBoost = targetBoost;
@@ -856,20 +882,22 @@ public partial class MainWindow
 
             _lastAppliedBoost = data.lastBoost;
 
-            if (data.cpuRpm >= 0)
+            if (data.cpuRpm >= 0 || data.cpuTemp > 0)
             {
-                G15LiveCpuTemp.Text = data.cpuTemp > 0 ? $"{data.cpuTemp} °C · {data.cpuRpm} RPM" : $"{data.cpuRpm} RPM";
-                G15LiveCpuBoost.Text = $"Boost ativo: {data.cpuBoost}%";
+                string rpmStr = data.cpuRpm >= 0 ? $"{data.cpuRpm} RPM" : "— RPM";
+                G15LiveCpuTemp.Text = data.cpuTemp > 0 ? $"{data.cpuTemp} °C · {rpmStr}" : rpmStr;
+                G15LiveCpuBoost.Text = data.cpuBoost >= 0 ? $"Boost ativo: {data.cpuBoost}%" : "Boost ativo: —%";
             }
-            if (data.gpuRpm >= 0)
+            if (data.gpuRpm >= 0 || data.gpuTemp > 0)
             {
-                G15LiveGpuTemp.Text = data.gpuTemp > 0 ? $"{data.gpuTemp} °C · {data.gpuRpm} RPM" : $"{data.gpuRpm} RPM";
-                G15LiveGpuBoost.Text = $"Boost ativo: {data.gpuBoost}%";
+                string rpmStr = data.gpuRpm >= 0 ? $"{data.gpuRpm} RPM" : "— RPM";
+                G15LiveGpuTemp.Text = data.gpuTemp > 0 ? $"{data.gpuTemp} °C · {rpmStr}" : rpmStr;
+                G15LiveGpuBoost.Text = data.gpuBoost >= 0 ? $"Boost ativo: {data.gpuBoost}%" : "Boost ativo: —%";
             }
 
             G15LivePowerMode.Text = data.gmodeOn ? "G-MODE · 100%" : "ADAPTATIVO · MANUAL";
             G15LivePowerSub.Text = string.IsNullOrEmpty(data.powerMode)
-                ? (data.gmodeOn ? "Level 171 (Força Bruta)" : "Manual (0) · Curva 8 pts")
+                ? (data.gmodeOn ? "Level 171 (Força Bruta)" : "Manual (0) · 100% aos 78°C")
                 : data.powerMode;
         }
         catch { }
@@ -1173,14 +1201,6 @@ public partial class MainWindow
                 dis?.WaitForExit(2000);
             }
             catch { }
-        }
-
-        foreach (string procName in new[] { "alienfx-gui", "alienfan-gui" })
-        {
-            foreach (var p in Process.GetProcessesByName(procName))
-            {
-                try { p.Kill(); } catch { }
-            }
         }
     }
 

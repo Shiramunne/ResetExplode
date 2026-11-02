@@ -206,7 +206,7 @@ internal sealed class TrayIcon : IDisposable
             AppendMenuW(hMenu, MF_STRING | (state.gmode ? MF_CHECKED : 0), (UIntPtr)CMD_FAN_GMODE, "Ventoinhas · G-Mode (Turbina 100%)");
 
             AppendMenuW(hMenu, MF_SEPARATOR, UIntPtr.Zero, null);
-            AppendMenuW(hMenu, MF_STRING | (state.gpuProfile == 1 ? MF_CHECKED : 0), (UIntPtr)CMD_GPU_P1, "GPU · Perfil 1 (850 mV Undervolt)");
+            AppendMenuW(hMenu, MF_STRING | (state.gpuProfile == 1 ? MF_CHECKED : 0), (UIntPtr)CMD_GPU_P1, "GPU · Perfil 1 (800 mV · 1785 MHz Frio)");
             AppendMenuW(hMenu, MF_STRING | (state.gpuProfile == 2 ? MF_CHECKED : 0), (UIntPtr)CMD_GPU_P2, "GPU · Perfil 2 (1000 mV)");
 
             AppendMenuW(hMenu, MF_SEPARATOR, UIntPtr.Zero, null);
