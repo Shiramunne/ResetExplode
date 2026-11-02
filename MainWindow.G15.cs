@@ -988,4 +988,114 @@ public partial class MainWindow
         });
         create?.WaitForExit(4000);
     }
+
+    // ---------------- Bandeja do Sistema (System Tray) ----------------
+
+    private TrayIcon? _trayIcon;
+    private bool _realExit;
+
+    private void InitTrayIcon(IntPtr hwnd)
+    {
+        _trayIcon = new TrayIcon(hwnd)
+        {
+            QueryState = () => (_settings.G15.GModeEnabled, _settings.G15.ActiveGpuProfile, ChkOverlay.IsChecked == true)
+        };
+        _trayIcon.OpenRequested += RestoreFromTray;
+        _trayIcon.MenuCommandRequested += OnTrayMenuCommand;
+
+        if (_settings.G15.StartMinimized && Environment.GetCommandLineArgs().Any(a => string.Equals(a, "--minimized", StringComparison.OrdinalIgnoreCase)))
+        {
+            Dispatcher.BeginInvoke(new Action(() => SendToTray(showBalloon: false)), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+    }
+
+    public void SendToTray(bool showBalloon = true)
+    {
+        ShowInTaskbar = false;
+        Hide();
+        if (showBalloon)
+        {
+            _trayIcon?.ShowMinimizedBalloonOnce();
+        }
+    }
+
+    public void RestoreFromTray()
+    {
+        ShowInTaskbar = true;
+        Show();
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+        Activate();
+        Topmost = true;
+        Topmost = false;
+        Focus();
+    }
+
+    public void ExitApplicationCompletely()
+    {
+        _realExit = true;
+        _trayIcon?.Dispose();
+        _trayIcon = null;
+        Close();
+    }
+
+    private async void OnTrayMenuCommand(int cmd)
+    {
+        switch (cmd)
+        {
+            case TrayIcon.CMD_OPEN:
+                RestoreFromTray();
+                break;
+
+            case TrayIcon.CMD_G15:
+                RestoreFromTray();
+                NavG15.IsChecked = true;
+                ShowPage("PageG15");
+                TitlePage.Text = "G15 Control";
+                break;
+
+            case TrayIcon.CMD_FAN_ADAPT:
+            case TrayIcon.CMD_FAN_GMODE:
+            {
+                bool gmode = cmd == TrayIcon.CMD_FAN_GMODE;
+                _settings.G15.GModeEnabled = gmode;
+                _g15UiInitializing = true;
+                RbG15FanAdaptive.IsChecked = !gmode;
+                RbG15FanGMode.IsChecked = gmode;
+                _g15UiInitializing = false;
+                _settings.Save();
+                string msg = await Task.Run(() => ApplyG15ThermalModeInternal(gmode));
+                G15FanStatus.Text = msg;
+                await RefreshG15SensorsAsync();
+                break;
+            }
+
+            case TrayIcon.CMD_GPU_P1:
+            case TrayIcon.CMD_GPU_P2:
+            {
+                int prof = cmd == TrayIcon.CMD_GPU_P2 ? 2 : 1;
+                _settings.G15.ActiveGpuProfile = prof;
+                _g15UiInitializing = true;
+                RbG15GpuP1.IsChecked = prof == 1;
+                RbG15GpuP2.IsChecked = prof == 2;
+                _g15UiInitializing = false;
+                SyncG15GpuSlidersToProfile(prof);
+                _settings.Save();
+                string msg = await Task.Run(() => ApplyG15GpuProfileInternal(_settings.G15));
+                G15GpuStatus.Text = msg;
+                UpdateG15QuickProfileBadge();
+                break;
+            }
+
+            case TrayIcon.CMD_OVERLAY:
+                ChkOverlay.IsChecked = ChkOverlay.IsChecked != true;
+                break;
+
+            case TrayIcon.CMD_EXIT:
+                ExitApplicationCompletely();
+                break;
+        }
+    }
 }

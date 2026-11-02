@@ -7,13 +7,14 @@ namespace ResetExplode;
 
 public partial class App : Application
 {
-    // Uma única instância: abrir o ARAÚJO CONTROL SUITE de novo traz a janela que já está aberta para a frente.
+    // Uma única instância: abrir o ARAÚJO CONTROL SUITE de novo traz a janela que já está aberta (mesmo se estiver na bandeja) para a frente.
     private static Mutex? _single;
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string? cls, string title);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr h, int cmd);
     [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr h);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool PostMessageW(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -27,6 +28,7 @@ public partial class App : Application
             if (h == IntPtr.Zero) h = FindWindow(null, "RESET EXPLODE");
             if (h != IntPtr.Zero)
             {
+                PostMessageW(h, TrayIcon.WM_RESTORE_APP, IntPtr.Zero, IntPtr.Zero);
                 if (IsIconic(h)) ShowWindow(h, 9); // SW_RESTORE
                 else ShowWindow(h, 5);             // SW_SHOW
                 SetForegroundWindow(h);

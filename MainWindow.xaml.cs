@@ -126,13 +126,27 @@ public partial class MainWindow : Window
 
         StateChanged += (_, _) =>
         {
+            if (WindowState == WindowState.Minimized)
+            {
+                SendToTray();
+                return;
+            }
             // Sem borda nativa, a janela maximizada vaza ~7 px para fora da tela.
             bool max = WindowState == WindowState.Maximized;
             Root.Margin = max ? new Thickness(7) : new Thickness(0);
             BtnMax.Content = max ? "" : "";
         };
+        Closing += (_, e) =>
+        {
+            if (!_realExit)
+            {
+                e.Cancel = true;
+                SendToTray();
+            }
+        };
         Closed += (_, _) =>
         {
+            _trayIcon?.Dispose();
             _timer.Stop(); _overlayTimer?.Stop();
             _stress.Stop(); _burn.Stop(); _benchCts?.Cancel();
             _overlay?.Close();
@@ -1292,10 +1306,16 @@ public partial class MainWindow : Window
         System.Windows.Interop.HwndSource.FromHwnd(hwnd)?.AddHook(HotkeyHook);
         // Ctrl + Shift + O, sem repetição ao segurar
         RegisterHotKey(hwnd, HotkeyId, 0x0002 | 0x0004 | 0x4000, 0x4F);
+        InitTrayIcon(hwnd);
     }
 
     private IntPtr HotkeyHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (_trayIcon != null && _trayIcon.HandleWndProc(msg, wParam, lParam))
+        {
+            handled = true;
+            return IntPtr.Zero;
+        }
         if (msg == 0x0312 && wParam.ToInt32() == HotkeyId) // WM_HOTKEY
         {
             ChkOverlay.IsChecked = ChkOverlay.IsChecked != true;
