@@ -1150,9 +1150,14 @@ public partial class MainWindow
         });
         create?.WaitForExit(4000);
 
-        // Desativa as tarefas redundantes do Afterburner e UXTU na inicialização do Windows,
-        // já que o Araújo Control Suite aplica a curva V/F via NVAPI nativo e os limites SMU via PawnIO.
-        foreach (string legacyTask in new[] { "\\MSIAfterburner", "\\UXTU" })
+        // Desativa as tarefas redundantes do Afterburner, UXTU e AlienFX na inicialização do Windows,
+        // já que o Araújo Control Suite assumiu 100% do controle (NVAPI nativo, SMU PawnIO, AlienFan e AlienFX).
+        CleanupLegacyG15Apps();
+    }
+
+    public static void CleanupLegacyG15Apps()
+    {
+        foreach (string legacyTask in new[] { "\\MSIAfterburner", "\\UXTU", "\\alienfx-gui" })
         {
             try
             {
@@ -1168,6 +1173,14 @@ public partial class MainWindow
                 dis?.WaitForExit(2000);
             }
             catch { }
+        }
+
+        foreach (string procName in new[] { "alienfx-gui", "alienfan-gui" })
+        {
+            foreach (var p in Process.GetProcessesByName(procName))
+            {
+                try { p.Kill(); } catch { }
+            }
         }
     }
 
