@@ -293,7 +293,9 @@ public partial class MainWindow : Window
             case "PageDash": UpdateDashboard(); break;
             case "PageDisks": RefreshDiskHealth(); break;
             case "PageEnergy": RefreshEnergy(); break;
-            case "PageG15": TickG15(); break;
+            case "PageAfterburner": UpdateG15GpuLabels(); UpdateG15QuickProfileBadge(); break;
+            case "PageUxtu": UpdateG15CpuLabels(); break;
+            case "PageAlienFan": TickG15(); break;
             case "PageOc": UpdateOcGpuState(); UpdateRecentErrors(); break;
             case "PageInteg": InitInteg(); break;
             case "PageLauncher": InitLauncher(); break;
@@ -310,7 +312,7 @@ public partial class MainWindow : Window
 
     private void ShowPage(string name)
     {
-        foreach (var p in new FrameworkElement[] { PageDash, PageSystem, PageSensors, PageGpu, PageGames, PageBottleneck, PageOverlay, PageBench, PageOptimize, PageG15, PageOc, PageInteg, PageLauncher, PageDriver, PageStartup, PageApps, PageMakerPorts, PageMakerDrv, PageDisks, PageEnergy, PageNet, PageStress, PageEvents, PageBsod })
+        foreach (var p in new FrameworkElement[] { PageDash, PageSystem, PageSensors, PageGpu, PageGames, PageBottleneck, PageOverlay, PageBench, PageOptimize, PageAfterburner, PageUxtu, PageAlienFan, PageOc, PageInteg, PageLauncher, PageDriver, PageStartup, PageApps, PageMakerPorts, PageMakerDrv, PageDisks, PageEnergy, PageNet, PageStress, PageEvents, PageBsod })
             p.Visibility = p.Name == name ? Visibility.Visible : Visibility.Collapsed;
     }
 

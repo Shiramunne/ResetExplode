@@ -241,12 +241,27 @@
                                     <TextBlock Text="Visão geral" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </RadioButton>
-                            <RadioButton x:Name="NavG15" Style="{StaticResource NavItem}" Tag="PageG15" Checked="Nav_Checked">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#xE950;" FontFamily="{StaticResource Icons}" FontSize="14" Width="28" VerticalAlignment="Center"/>
-                                    <TextBlock Text="G15 Control" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </RadioButton>
+                            <ToggleButton x:Name="GrpTuning" Style="{StaticResource NavGroup}" Content="TUNING &amp; HARDWARE" IsChecked="True"/>
+                            <StackPanel x:Name="GrpTuningItems" Margin="10,0,0,4" Visibility="{Binding IsChecked, ElementName=GrpTuning, Converter={StaticResource BoolVis}}">
+                                <RadioButton x:Name="NavAfterburner" Style="{StaticResource NavItem}" Tag="PageAfterburner" Checked="Nav_Checked">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE7F4;" FontFamily="{StaticResource Icons}" FontSize="14" Width="28" VerticalAlignment="Center"/>
+                                        <TextBlock Text="MSI Afterburner (GPU)" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </RadioButton>
+                                <RadioButton x:Name="NavUxtu" Style="{StaticResource NavItem}" Tag="PageUxtu" Checked="Nav_Checked">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE950;" FontFamily="{StaticResource Icons}" FontSize="14" Width="28" VerticalAlignment="Center"/>
+                                        <TextBlock Text="UXTU (Processador CPU)" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </RadioButton>
+                                <RadioButton x:Name="NavAlienFan" Style="{StaticResource NavItem}" Tag="PageAlienFan" Checked="Nav_Checked">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE945;" FontFamily="{StaticResource Icons}" FontSize="14" Width="28" VerticalAlignment="Center"/>
+                                        <TextBlock Text="AlienFan (Refrigeração &amp; G-Mode)" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </RadioButton>
+                            </StackPanel>
                             <ToggleButton x:Name="GrpExplode" Style="{StaticResource NavGroup}" Content="ARAÚJO SUITE"/>
                             <StackPanel x:Name="GrpExplodeItems" Margin="10,0,0,4" Visibility="{Binding IsChecked, ElementName=GrpExplode, Converter={StaticResource BoolVis}}">
                             <RadioButton x:Name="NavSystem" Style="{StaticResource NavItem}" Tag="PageSystem" Checked="Nav_Checked">
@@ -3241,70 +3256,48 @@
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- ===== G15 CONTROL (HUB UNIFICADO DELL G15 5515) ===== -->
-                <ScrollViewer x:Name="PageG15" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                <!-- ===== 1. MSI AFTERBURNER (GPU OVERCLOCK & UNDERVOLT) ===== -->
+                <ScrollViewer x:Name="PageAfterburner" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="36,30,36,30">
                         <StackPanel Margin="0,0,0,20">
-                            <TextBlock Text="G15 CONTROL" Style="{StaticResource H1}"/>
-                            <TextBlock Text="Painel unificado Dell G15 5515 · GPU Undervolt (mV), Ryzen 7 5800H SMU, Ventoinhas Adaptativas, G-Mode e Teclado AlienFX" Style="{StaticResource Sub}"/>
+                            <TextBlock Text="MSI AFTERBURNER (GPU)" Style="{StaticResource H1}"/>
+                            <TextBlock Text="Controle direto de Tensão (mV), Clock do Core e Memória VRAM via driver nativo NVIDIA (NVAPI) sem Afterburner rodando" Style="{StaticResource Sub}"/>
                         </StackPanel>
 
-                        <!-- 1. MONITOR RÁPIDO & CONTROLE TÉRMICO (ALIENFAN / G-MODE) -->
+                        <!-- Live Strip GPU -->
                         <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
                             <StackPanel>
-                                <TextBlock Text="MONITOR RÁPIDO &amp; REFRIGERAÇÃO (DELL G15 · ALIENFAN)" Style="{StaticResource Label}"/>
-
-                                <UniformGrid Columns="4" Margin="0,4,0,16">
+                                <TextBlock Text="MONITOR EM TEMPO REAL · NVIDIA GEFORCE RTX 3060" Style="{StaticResource Label}"/>
+                                <UniformGrid Columns="3" Margin="0,4,0,0">
                                     <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,8,0">
                                         <StackPanel>
-                                            <TextBlock Text="CPU · RYZEN 7 5800H" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
-                                            <TextBlock x:Name="G15LiveCpuTemp" Text="— °C · — RPM" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
-                                            <TextBlock x:Name="G15LiveCpuBoost" Text="Boost ativo: —%" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
+                                            <TextBlock Text="TEMPERATURA DIE REAL" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="GpuAbLiveTemp" Text="— °C" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
+                                            <TextBlock Text="Sensor direto do chip NVIDIA" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
                                         </StackPanel>
                                     </Border>
                                     <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="4,0,4,0">
                                         <StackPanel>
-                                            <TextBlock Text="GPU · RTX 3060" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
-                                            <TextBlock x:Name="G15LiveGpuTemp" Text="— °C · — RPM" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
-                                            <TextBlock x:Name="G15LiveGpuBoost" Text="Boost ativo: —%" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="4,0,4,0">
-                                        <StackPanel>
-                                            <TextBlock Text="MODO TÉRMICO ATIVO" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
-                                            <TextBlock x:Name="G15LivePowerMode" Text="ADAPTATIVO" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
-                                            <TextBlock x:Name="G15LivePowerSub" Text="Manual (0) · Curva 8 pts" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="8,0,0,0">
-                                        <StackPanel>
-                                            <TextBlock Text="PERFIL GPU CONFIGURADO" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
+                                            <TextBlock Text="PERFIL ATIVO CONFIGURADO" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
                                             <TextBlock x:Name="G15LiveGpuProfile" Text="PERFIL 1 · 800 mV" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
                                             <TextBlock x:Name="G15LiveGpuSub" Text="1785 MHz · VRAM +0 MHz" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
                                         </StackPanel>
                                     </Border>
+                                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="8,0,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="STATUS DA CURVA V/F" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="G15BarCurveSummary" Text="800 mV · 1785 MHz" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
+                                            <TextBlock Text="Driver NVAPI Nativo" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
+                                        </StackPanel>
+                                    </Border>
                                 </UniformGrid>
-
-                                <TextBlock Text="SELETOR DE MODO DAS VENTOINHAS (BOTÃO FÍSICO 'G' DO TECLADO OU PAINEL)" Style="{StaticResource Label}"/>
-                                <WrapPanel Margin="0,2,0,10">
-                                    <RadioButton x:Name="RbG15FanAdaptive" Style="{StaticResource Chip}" GroupName="G15FanMode"
-                                                 Content="Modo Adaptativo Inteligente (Anti-Throttle · 100% aos 78°C)" IsChecked="True"
-                                                 Click="RbG15FanMode_Click"/>
-                                    <RadioButton x:Name="RbG15FanGMode" Style="{StaticResource Chip}" GroupName="G15FanMode"
-                                                 Content="G-Mode · Força Bruta (Level 171 · Turbina 100% · Tecla G)"
-                                                 Click="RbG15FanMode_Click"/>
-                                    <Button x:Name="BtnG15FanCalibrate" Style="{StaticResource OutlineButton}" Content="RECALIBRAR CURVA ADAPTATIVA"
-                                            Padding="14,5" FontSize="11.5" Margin="6,0,0,6" Click="BtnG15FanCalibrate_Click"/>
-                                </WrapPanel>
-                                <TextBlock x:Name="G15FanStatus" Foreground="{DynamicResource Muted}" FontSize="12" TextWrapping="Wrap"
-                                           Text="Tecla física G (Fn+F9 / F17) integrada: aperte no teclado a qualquer momento (inclusive dentro do jogo) ou clique acima para alternar entre Modo Adaptativo e G-Mode 100%."/>
                             </StackPanel>
                         </Border>
 
-                        <!-- 2. PLACA DE VÍDEO · NVIDIA GEFORCE RTX 3060 (CURVAS & SLIDERS mV) -->
+                        <!-- Configuração de Curva e Sliders -->
                         <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
                             <StackPanel>
-                                <TextBlock Text="PLACA DE VÍDEO · NVIDIA GEFORCE RTX 3060 (CURVA DE TENSÃO mV &amp; CLOCK)" Style="{StaticResource Label}"/>
+                                <TextBlock Text="AJUSTE DE TENSÃO (mV), CORE E MEMÓRIA (VRAM)" Style="{StaticResource Label}"/>
                                 <TextBlock Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,0,0,14">
                                     Selecione o perfil desejado e ajuste pelos sliders ou digite o valor exato nas caixas numéricas ao lado (pressione Enter ou clique fora para confirmar).
                                 </TextBlock>
@@ -3314,42 +3307,11 @@
                                                  Content="Perfil 1 · Undervolt Frio Original (800 mV · 1785 MHz · +0 MHz)" IsChecked="True"
                                                  Checked="G15GpuProfile_Checked"/>
                                     <RadioButton x:Name="RbG15GpuP2" Style="{StaticResource Chip}" GroupName="G15GpuProfile"
-                                                 Content="Perfil 2 · Compatibilidade (1000 mV · +950 MHz)"
+                                                 Content="Perfil 2 · Compatibilidade / Offset (+950 MHz)"
                                                  Checked="G15GpuProfile_Checked"/>
                                 </WrapPanel>
 
-                                <!-- Barra visual estilo Afterburner com números em mV e MHz ao lado dos sliders -->
-                                <Border Background="#1B1C1E" BorderBrush="#2C2E33" BorderThickness="1" CornerRadius="8" Padding="18,14" Margin="0,0,0,16">
-                                    <Grid VerticalAlignment="Center">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="78"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="32"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="138"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-
-                                        <TextBlock Text="Clock" Foreground="#EAEAEA" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,22,0"/>
-                                        <TextBlock Grid.Column="1" Text="Mem (MHz)" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                        <TextBlock x:Name="G15MemValue" Grid.Column="2" Text="+0 MHz" FontFamily="{StaticResource Mono}" FontSize="12"
-                                                   Foreground="#FFFFFF" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                        <Slider x:Name="G15MemSlider" Grid.Column="3" Style="{StaticResource G15BlueSlider}"
-                                                Minimum="-500" Maximum="1000" Value="0" TickFrequency="25" IsSnapToTickEnabled="False"
-                                                ValueChanged="G15GpuSlider_Changed"/>
-
-                                        <TextBlock Grid.Column="5" Text="Core / Curva (mV)" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                        <TextBlock x:Name="G15BarCurveSummary" Grid.Column="6" Text="800 mV · 1785 MHz" FontFamily="{StaticResource Mono}" FontSize="12"
-                                                   Foreground="#38ACEC" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                        <Slider x:Name="G15VoltSlider" Grid.Column="7" Style="{StaticResource G15BlueSlider}"
-                                                Minimum="700" Maximum="1050" Value="800" TickFrequency="5" IsSnapToTickEnabled="False"
-                                                ValueChanged="G15GpuSlider_Changed"/>
-                                    </Grid>
-                                </Border>
-
-                                <!-- Ajuste fino de Memória, Tensão (mV) e Clock Alvo / Offset da Curva com caixas digitáveis (estilo UXTU) -->
+                                <!-- Sliders e Caixas Numéricas -->
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -3359,6 +3321,7 @@
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
+                                    <!-- VRAM -->
                                     <StackPanel Grid.Column="0">
                                         <Grid Margin="0,0,0,6">
                                             <TextBlock Text="CLOCK DE MEMÓRIA VRAM (MHz)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
@@ -3367,13 +3330,18 @@
                                                          TextAlignment="Right" VerticalAlignment="Center"
                                                          KeyDown="G15NumericBox_KeyDown" LostFocus="G15GpuBox_LostFocus"/>
                                                 <TextBlock Text=" MHz" FontFamily="{StaticResource Mono}" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="G15MemValue" Text="+0 MHz" Visibility="Collapsed"/>
                                             </StackPanel>
                                         </Grid>
-                                        <TextBlock Foreground="{DynamicResource Faint}" FontSize="11" TextWrapping="Wrap">
-                                            Offset da VRAM (-500 a +1000 MHz). Recomendado: 0 MHz para menor temperatura.
+                                        <Slider x:Name="G15MemSlider" Style="{StaticResource G15BlueSlider}"
+                                                Minimum="-500" Maximum="1000" Value="0" TickFrequency="25" IsSnapToTickEnabled="False"
+                                                ValueChanged="G15GpuSlider_Changed"/>
+                                        <TextBlock Foreground="{DynamicResource Faint}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap">
+                                            Offset da VRAM (-500 a +1000 MHz). Recomendado: 0 MHz para manter a estabilidade térmica.
                                         </TextBlock>
                                     </StackPanel>
 
+                                    <!-- Tensão mV -->
                                     <StackPanel Grid.Column="2">
                                         <Grid Margin="0,0,0,6">
                                             <TextBlock Text="TENSÃO DA CURVA (mV)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
@@ -3385,11 +3353,15 @@
                                                 <TextBlock x:Name="G15VoltValue" Text="800 mV" Visibility="Collapsed"/>
                                             </StackPanel>
                                         </Grid>
-                                        <TextBlock Foreground="{DynamicResource Faint}" FontSize="11" TextWrapping="Wrap">
+                                        <Slider x:Name="G15VoltSlider" Style="{StaticResource G15BlueSlider}"
+                                                Minimum="700" Maximum="1050" Value="800" TickFrequency="5" IsSnapToTickEnabled="False"
+                                                ValueChanged="G15GpuSlider_Changed"/>
+                                        <TextBlock Foreground="{DynamicResource Faint}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap">
                                             Ponto de tensão (700 a 1050 mV) onde a curva trava o clock máximo da GPU.
                                         </TextBlock>
                                     </StackPanel>
 
+                                    <!-- Core Clock -->
                                     <StackPanel Grid.Column="4">
                                         <Grid Margin="0,0,0,6">
                                             <TextBlock x:Name="G15CoreLabelTitle" Text="CLOCK ALVO NA CURVA (MHz)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
@@ -3404,26 +3376,69 @@
                                         <Slider x:Name="G15CoreSlider" Style="{StaticResource G15BlueSlider}"
                                                 Minimum="1500" Maximum="2100" Value="1785" TickFrequency="15" IsSnapToTickEnabled="False"
                                                 ValueChanged="G15GpuSlider_Changed"/>
+                                        <TextBlock Foreground="{DynamicResource Faint}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap">
+                                            Clock máximo atingido na tensão escolhida (ex: 1785 MHz a 800 mV).
+                                        </TextBlock>
                                     </StackPanel>
                                 </Grid>
 
-                                <WrapPanel>
-                                    <Button x:Name="BtnG15GpuApply" Style="{StaticResource PrimaryButton}" Content="APLICAR CURVA GPU"
+                                <WrapPanel Margin="0,6,0,0">
+                                    <Button x:Name="BtnG15GpuApply" Style="{StaticResource PrimaryButton}" Content="APLICAR CURVA GPU (NVAPI)"
                                             Padding="20,9" Margin="0,0,10,8" Click="BtnG15GpuApply_Click"/>
                                     <Button Style="{StaticResource OutlineButton}" Content="RESTAURAR PADRÃO DO PERFIL"
                                             Padding="20,9" Margin="0,0,10,8" Click="BtnG15GpuReset_Click"/>
                                 </WrapPanel>
                                 <TextBlock x:Name="G15GpuStatus" Foreground="{DynamicResource Muted}" FontSize="12" TextWrapping="Wrap"
-                                           Text="Pronto para aplicar ou alternar entre o Perfil 1 (800 mV · 1785 MHz) e o Perfil 2 (1000 mV)."/>
+                                           Text="Pronto para aplicar diretamente no driver NVIDIA via NVAPI."/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===== 2. UXTU (PROCESSADOR CPU · CUSTOM TUNING) ===== -->
+                <ScrollViewer x:Name="PageUxtu" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30,36,30">
+                        <StackPanel Margin="0,0,0,20">
+                            <TextBlock Text="UXTU (PROCESSADOR CPU)" Style="{StaticResource H1}"/>
+                            <TextBlock Text="Ajuste customizável de limite térmico e potências (STAPM / Slow / Fast) via Ryzen SMU com auto-reaplicação periódica" Style="{StaticResource Sub}"/>
+                        </StackPanel>
+
+                        <!-- Live Strip CPU -->
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="MONITOR EM TEMPO REAL · AMD RYZEN 7 5800H" Style="{StaticResource Label}"/>
+                                <UniformGrid Columns="3" Margin="0,4,0,0">
+                                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,8,0">
+                                        <StackPanel>
+                                            <TextBlock Text="TEMPERATURA DIE REAL (TCTL/TDIE)" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="CpuUxtuLiveTemp" Text="— °C" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
+                                            <TextBlock Text="Sensor interno do silício AMD" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="4,0,4,0">
+                                        <StackPanel>
+                                            <TextBlock Text="TETO TÉRMICO DEFINIDO" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="CpuUxtuCapSummary" Text="88 °C (Anti-Throttle)" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
+                                            <TextBlock Text="Trava cHTC / tctl no SMU" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="8,0,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="STATUS DA AUTO-REAPLICAÇÃO" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="CpuUxtuReapplyStatus" Text="ATIVA (15s)" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
+                                            <TextBlock Text="Protege contra reset da BIOS" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </UniformGrid>
                             </StackPanel>
                         </Border>
 
-                        <!-- 3. PROCESSADOR · AMD RYZEN 7 5800H (UXTU / SMU) -->
+                        <!-- Custom Controls CPU -->
                         <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
                             <StackPanel>
-                                <TextBlock Text="PROCESSADOR · AMD RYZEN 7 5800H (LIMITES TÉRMICOS &amp; POTÊNCIA SMU · AUTO-REAPLICAÇÃO UXTU)" Style="{StaticResource Label}"/>
+                                <TextBlock Text="AJUSTE CUSTOMIZÁVEL DE LIMITES TÉRMICOS &amp; POTÊNCIA (SMU)" Style="{StaticResource Label}"/>
                                 <TextBlock Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,0,0,16">
-                                    Comunica diretamente com o SMU do Ryzen 7 5800H via driver PawnIO e reaplica os limites automaticamente no intervalo configurado (padrão: 15s, igual ao UXTU) para impedir que a BIOS da Dell derrube a trava de 88 °C durante o jogo.
+                                    Modo Custom livre: digite qualquer valor desejado nas caixas ou deslize os controles. O suite grava diretamente no SMU do Ryzen 7 5800H via driver PawnIO.
                                 </TextBlock>
 
                                 <Grid Margin="0,0,0,14">
@@ -3438,6 +3453,7 @@
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
 
+                                    <!-- Limite de Temperatura -->
                                     <StackPanel Grid.Row="0" Grid.Column="0">
                                         <Grid Margin="0,0,0,6">
                                             <TextBlock Text="LIMITE DE TEMPERATURA APU (°C)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
@@ -3454,6 +3470,7 @@
                                                 ValueChanged="G15CpuSlider_Changed"/>
                                     </StackPanel>
 
+                                    <!-- STAPM (W) -->
                                     <StackPanel Grid.Row="0" Grid.Column="2">
                                         <Grid Margin="0,0,0,6">
                                             <TextBlock Text="POTÊNCIA SUSTENTADA · STAPM (W)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
@@ -3470,6 +3487,7 @@
                                                 ValueChanged="G15CpuSlider_Changed"/>
                                     </StackPanel>
 
+                                    <!-- Slow Limit (W) -->
                                     <StackPanel Grid.Row="2" Grid.Column="0">
                                         <Grid Margin="0,0,0,6">
                                             <TextBlock Text="SLOW POWER LIMIT (W)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
@@ -3486,6 +3504,7 @@
                                                 ValueChanged="G15CpuSlider_Changed"/>
                                     </StackPanel>
 
+                                    <!-- Fast Limit (W) -->
                                     <StackPanel Grid.Row="2" Grid.Column="2">
                                         <Grid Margin="0,0,0,6">
                                             <TextBlock Text="FAST POWER LIMIT · BOOST (W)" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0"/>
@@ -3503,7 +3522,7 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <!-- Controle de Auto-Reaplicação Periódica idêntico ao UXTU -->
+                                <!-- Auto-Reaplicação Periódica -->
                                 <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,14">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -3512,10 +3531,10 @@
                                             <ColumnDefinition Width="320"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel VerticalAlignment="Center">
-                                            <CheckBox x:Name="ChkG15CpuAutoReapply" Content="Reaplicar limites na CPU automaticamente (impede reset da BIOS / EC)"
+                                            <CheckBox x:Name="ChkG15CpuAutoReapply" Content="Reaplicar limites na CPU periodicamente (impede reset da BIOS / EC)"
                                                       IsChecked="True" Click="ChkG15CpuAutoReapply_Click"/>
                                             <TextBlock Foreground="{DynamicResource Faint}" FontSize="11" Margin="26,4,0,0" TextWrapping="Wrap">
-                                                No Dell G15 5515, a BIOS tenta remover o teto de 88 °C após alguns segundos de carga. Manter ativo garante que o processador nunca passe do limite.
+                                                No Dell G15 5515, a BIOS tenta remover o teto de 88 °C durante o jogo. Manter ativo garante que o processador nunca passe do limite.
                                             </TextBlock>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" VerticalAlignment="Center">
@@ -3536,22 +3555,83 @@
                                 </Border>
 
                                 <WrapPanel Margin="0,4,0,0">
-                                    <Button x:Name="BtnG15CpuApply" Style="{StaticResource PrimaryButton}" Content="APLICAR LIMITES CPU"
+                                    <Button x:Name="BtnG15CpuApply" Style="{StaticResource PrimaryButton}" Content="APLICAR LIMITES NO PROCESSADOR"
                                             Padding="20,9" Margin="0,0,10,8" Click="BtnG15CpuApply_Click"/>
-                                    <Button Style="{StaticResource OutlineButton}" Content="PRESET FRIO ORIGINAL (88°C · 29W / 32W · 15s)"
+                                    <Button Style="{StaticResource OutlineButton}" Content="RESTAURAR PADRÃO (88°C · 29W / 32W · 15s)"
                                             Padding="20,9" Margin="0,0,10,8" Click="BtnG15CpuReset_Click"/>
                                 </WrapPanel>
                                 <TextBlock x:Name="G15CpuStatus" Foreground="{DynamicResource Muted}" FontSize="12" TextWrapping="Wrap"
-                                           Text="Configuração pronta: 88 °C limite térmico · 29 W STAPM · 29 W Slow · 32 W Fast Boost (reaplicação a cada 15s)."/>
+                                           Text="Configuração pronta: 88 °C limite térmico · 29 W STAPM · 29 W Slow · 32 W Fast Boost."/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===== 3. ALIENFAN (REFRIGERAÇÃO & G-MODE) ===== -->
+                <ScrollViewer x:Name="PageAlienFan" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30,36,30">
+                        <StackPanel Margin="0,0,0,20">
+                            <TextBlock Text="ALIENFAN (REFRIGERAÇÃO &amp; G-MODE)" Style="{StaticResource H1}"/>
+                            <TextBlock Text="Controle inteligente de ventoinhas com leitura do die real, alternância com tecla física G (Fn+F9) e iluminação AlienFX" Style="{StaticResource Sub}"/>
+                        </StackPanel>
+
+                        <!-- Monitor Rápido Ventoinhas -->
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="MONITOR EM TEMPO REAL DAS VENTOINHAS &amp; SENSORES" Style="{StaticResource Label}"/>
+                                <UniformGrid Columns="4" Margin="0,4,0,16">
+                                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,8,0">
+                                        <StackPanel>
+                                            <TextBlock Text="COOLER CPU (RYZEN 7 5800H)" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="G15LiveCpuTemp" Text="— °C · — RPM" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
+                                            <TextBlock x:Name="G15LiveCpuBoost" Text="Boost ativo: —%" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="4,0,4,0">
+                                        <StackPanel>
+                                            <TextBlock Text="COOLER GPU (RTX 3060)" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="G15LiveGpuTemp" Text="— °C · — RPM" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
+                                            <TextBlock x:Name="G15LiveGpuBoost" Text="Boost ativo: —%" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="4,0,4,0">
+                                        <StackPanel>
+                                            <TextBlock Text="MODO ATIVO" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="G15LivePowerMode" Text="DINÂMICO" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
+                                            <TextBlock x:Name="G15LivePowerSub" Text="Turbinado · 100% aos 74°C" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="8,0,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="TECLA FÍSICA G (TECLADO)" Foreground="{DynamicResource Muted}" FontSize="10.5" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="G15LiveKeyStatus" Text="INTEGRADA" FontFamily="{StaticResource Mono}" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,2"/>
+                                            <TextBlock Text="Fn+F9 ativo em jogos" Foreground="{DynamicResource Faint}" FontSize="11" FontFamily="{StaticResource Mono}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </UniformGrid>
+
+                                <TextBlock Text="SELETOR DE MODO DAS VENTOINHAS" Style="{StaticResource Label}"/>
+                                <WrapPanel Margin="0,2,0,10">
+                                    <RadioButton x:Name="RbG15FanAdaptive" Style="{StaticResource Chip}" GroupName="G15FanMode"
+                                                 Content="Modo Dinâmico Turbinado (100% / ~5200 RPM aos 74°C no chip real)" IsChecked="True"
+                                                 Click="RbG15FanMode_Click"/>
+                                    <RadioButton x:Name="RbG15FanGMode" Style="{StaticResource Chip}" GroupName="G15FanMode"
+                                                 Content="G-Mode · Força Bruta 100% (Level 171 · 100% Fixo · Tecla G)"
+                                                 Click="RbG15FanMode_Click"/>
+                                    <Button x:Name="BtnG15FanCalibrate" Style="{StaticResource OutlineButton}" Content="RECALIBRAR MODO DINÂMICO"
+                                            Padding="14,5" FontSize="11.5" Margin="6,0,0,6" Click="BtnG15FanCalibrate_Click"/>
+                                </WrapPanel>
+                                <TextBlock x:Name="G15FanStatus" Foreground="{DynamicResource Muted}" FontSize="12" TextWrapping="Wrap"
+                                           Text="Tecla física G (Fn+F9 / F17) totalmente integrada: aperte no teclado físico a qualquer instante ou selecione acima."/>
                             </StackPanel>
                         </Border>
 
-                        <!-- 4. ILUMINAÇÃO DO TECLADO 4 ZONAS · ALIENFX -->
+                        <!-- Iluminação Teclado 4 Zonas -->
                         <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
                             <StackPanel>
-                                <TextBlock Text="ILUMINAÇÃO DO TECLADO · ALIENFX (CÓDIGO HEX RGB &amp; BRILHO)" Style="{StaticResource Label}"/>
+                                <TextBlock Text="ILUMINAÇÃO DO TECLADO 4 ZONAS · ALIENFX" Style="{StaticResource Label}"/>
                                 <TextBlock Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,0,0,14">
-                                    Digite qualquer código de cor hexadecimal (#RRGGBB) como nos programas de design ou escolha uma cor rápida e ajuste o brilho das 4 zonas do teclado.
+                                    Defina a cor RGB em código Hex (#RRGGBB) e o brilho do teclado retroiluminado de 4 zonas.
                                 </TextBlock>
 
                                 <Grid Margin="0,0,0,14">
@@ -3600,22 +3680,22 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- 5. INICIALIZAÇÃO & AUTOMAÇÃO COM O WINDOWS -->
+                        <!-- Automação e Inicialização -->
                         <Border Style="{StaticResource CardBorder}">
                             <StackPanel>
                                 <TextBlock Text="INICIALIZAÇÃO E AUTOMAÇÃO COM O WINDOWS" Style="{StaticResource Label}"/>
                                 <TextBlock Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,0,0,14">
-                                    Substitui a abertura de 3 programas separados na inicialização do Windows, aplicando todas as otimizações automaticamente ao ligar o notebook.
+                                    Substitui a abertura manual dos 3 programas ao ligar o PC, aplicando automaticamente o pacote configurado.
                                 </TextBlock>
 
                                 <CheckBox x:Name="ChkG15Startup" Content="Iniciar Araújo Control Suite automaticamente ao ligar o Windows (Tarefa Agendada Admin)"
                                           Margin="0,0,0,10" Click="ChkG15Startup_Click"/>
-                                <CheckBox x:Name="ChkG15StartMin" Content="Iniciar minimizado quando aberto automaticamente pelo Windows"
+                                <CheckBox x:Name="ChkG15StartMin" Content="Iniciar minimizado na bandeja quando aberto pelo Windows"
                                           Margin="0,0,0,10" Click="ChkG15Options_Click"/>
-                                <CheckBox x:Name="ChkG15AutoApply" Content="Aplicar automaticamente Perfil GPU + Limites CPU + Modo Adaptativo ao iniciar o programa"
+                                <CheckBox x:Name="ChkG15AutoApply" Content="Aplicar automaticamente Perfil GPU + Limites CPU + Modo Dinâmico ao iniciar o programa"
                                           Margin="0,0,0,16" Click="ChkG15Options_Click"/>
 
-                                <Button x:Name="BtnG15ApplyAll" Style="{StaticResource PrimaryButton}" Content="APLICAR PACOTE COMPLETO G15 AGORA (1 CLIQUE)"
+                                <Button x:Name="BtnG15ApplyAll" Style="{StaticResource PrimaryButton}" Content="APLICAR PACOTE COMPLETO AGORA (1 CLIQUE)"
                                         HorizontalAlignment="Left" Padding="24,10" Margin="0,0,0,8" Click="BtnG15ApplyAll_Click"/>
                                 <TextBlock x:Name="G15AutoStatus" Foreground="{DynamicResource Muted}" FontSize="12" TextWrapping="Wrap"/>
                             </StackPanel>

@@ -28,11 +28,12 @@ public partial class MainWindow
     private const string UxtuDllPath = @"C:\Program Files\JamesCJ60\Universal x86 Tuning Utility\Universal x86 Tuning Utility.dll";
     private const string ScheduledTaskName = "AraujoControlSuite";
 
-    // Curva progressiva calibrada de 8 pontos: (Temp °C, Boost %)
-    // Silenciosa em repouso (<=48°C), mas atinge 100% aos 78°C para impedir que a RTX 3060 atinja o limite de thermal throttle (86°C) no heatpipe compartilhado do G15.
+    // Curva progressiva turbinada de 8 pontos com leitura direta do DIE real (LHM):
+    // Silenciosa em repouso (<=48°C), atinge 100% de boost (~5000 a 5200 RPM) logo aos 74°C no chip real
+    // para impedir que o Dell G15 entre em thermal throttling no heatpipe compartilhado.
     private static readonly (int Temp, int Boost)[] AdaptiveCurvePoints =
     {
-        (0, 0), (48, 0), (54, 25), (60, 45), (66, 68), (72, 85), (78, 100), (100, 100)
+        (0, 0), (48, 0), (52, 25), (58, 45), (64, 70), (70, 88), (74, 100), (100, 100)
     };
 
     private bool _g15UiInitializing = true;
@@ -709,6 +710,8 @@ public partial class MainWindow
         if (G15CpuSlowBox != null && !G15CpuSlowBox.IsKeyboardFocusWithin) G15CpuSlowBox.Text = slow.ToString();
         if (G15CpuFastBox != null && !G15CpuFastBox.IsKeyboardFocusWithin) G15CpuFastBox.Text = fast.ToString();
         if (G15CpuIntervalBox != null && !G15CpuIntervalBox.IsKeyboardFocusWithin) G15CpuIntervalBox.Text = interval.ToString();
+        if (CpuUxtuCapSummary != null) CpuUxtuCapSummary.Text = $"{temp} °C (Teto Custom)";
+        if (CpuUxtuReapplyStatus != null) CpuUxtuReapplyStatus.Text = _settings.G15.AutoReapplyCpu ? $"ATIVA ({interval}s)" : "DESLIGADA";
     }
 
     private async void BtnG15CpuApply_Click(object sender, RoutedEventArgs e)
@@ -983,7 +986,7 @@ public partial class MainWindow
             // Compensamos a curva do Sensor 262 para atingir 100% aos 65°C do termistor (~80°C no chip da GPU).
             (int Temp, int Boost)[] gpuBoardCurve =
             {
-                (0, 0), (42, 0), (48, 30), (54, 55), (60, 80), (65, 100), (100, 100)
+                (0, 0), (40, 0), (46, 30), (52, 60), (58, 85), (60, 100), (100, 100)
             };
             byte[] gpuCurveBytes = new byte[gpuBoardCurve.Length * 2];
             for (int i = 0; i < gpuBoardCurve.Length; i++)
@@ -1037,7 +1040,7 @@ public partial class MainWindow
                     string msg = ApplyG15CpuLimitsInternal(cfgSnap);
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        if (G15CpuStatus != null && PageG15.IsVisible)
+                        if (G15CpuStatus != null && (PageUxtu?.IsVisible == true || PageAlienFan?.IsVisible == true))
                             G15CpuStatus.Text = msg;
                     }));
                 }
@@ -1047,7 +1050,10 @@ public partial class MainWindow
         }
 
         if (_g15Polling) return;
-        double intervalSec = PageG15.IsVisible ? 2.0 : 3.0;
+        bool isTuningPageVisible = (PageAlienFan != null && PageAlienFan.IsVisible) ||
+                                  (PageAfterburner != null && PageAfterburner.IsVisible) ||
+                                  (PageUxtu != null && PageUxtu.IsVisible);
+        double intervalSec = isTuningPageVisible ? 2.0 : 3.0;
         if ((DateTime.UtcNow - _lastG15Poll).TotalSeconds < intervalSec) return;
         _ = RefreshG15SensorsAsync();
     }
@@ -1124,10 +1130,19 @@ public partial class MainWindow
                 G15LiveGpuBoost.Text = data.gpuBoost >= 0 ? $"Boost ativo: {data.gpuBoost}%" : "Boost ativo: —%";
             }
 
-            G15LivePowerMode.Text = data.gmodeOn ? "G-MODE · 100%" : "ADAPTATIVO · MANUAL";
+            G15LivePowerMode.Text = data.gmodeOn ? "G-MODE · 100%" : "DINÂMICO · TURBO";
             G15LivePowerSub.Text = string.IsNullOrEmpty(data.powerMode)
-                ? (data.gmodeOn ? "Level 171 (Força Bruta)" : "Manual (0) · 100% aos 78°C")
+                ? (data.gmodeOn ? "Level 171 (Força Bruta)" : "Turbinado · 100% aos 74°C")
                 : data.powerMode;
+
+            if (GpuAbLiveTemp != null && data.gpuTemp > 0)
+            {
+                GpuAbLiveTemp.Text = $"{data.gpuTemp} °C";
+            }
+            if (CpuUxtuLiveTemp != null && data.cpuTemp > 0)
+            {
+                CpuUxtuLiveTemp.Text = $"{data.cpuTemp} °C";
+            }
         }
         catch { }
         finally
@@ -1578,9 +1593,9 @@ public partial class MainWindow
 
             case TrayIcon.CMD_G15:
                 RestoreFromTray();
-                NavG15.IsChecked = true;
-                ShowPage("PageG15");
-                TitlePage.Text = "G15 Control";
+                if (NavAlienFan != null) NavAlienFan.IsChecked = true;
+                ShowPage("PageAlienFan");
+                TitlePage.Text = "TUNING & HARDWARE · AlienFan (Refrigeração & G-Mode)";
                 break;
 
             case TrayIcon.CMD_FAN_ADAPT:
