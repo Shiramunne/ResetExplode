@@ -770,6 +770,9 @@ public partial class MainWindow
         bool smuOk = false;
         string smuError = "";
         string prevDir = Environment.CurrentDirectory;
+        string logPath = Path.Combine(AppSettings.Folder, "tuning.log");
+        var logDetails = new List<string>();
+
         try
         {
             if (File.Exists(UxtuDllPath))
@@ -785,11 +788,7 @@ public partial class MainWindow
                 var pathProp = settingsType?.GetProperty("Path", BindingFlags.Public | BindingFlags.Instance);
                 if (settingsInst != null && pathProp != null)
                 {
-                    string curPath = pathProp.GetValue(settingsInst) as string ?? "";
-                    if (string.IsNullOrWhiteSpace(curPath))
-                    {
-                        pathProp.SetValue(settingsInst, UxtuDir);
-                    }
+                    pathProp.SetValue(settingsInst, UxtuDir);
                 }
 
                 // CRÍTICO: Inicializa Family.setCpuFamily() e Addresses.setAddresses() antes de enviar comandos SMU
@@ -808,28 +807,57 @@ public partial class MainWindow
                 addrType?.GetMethod("setAddresses", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
                     ?.Invoke(null, null);
 
+                // 1. Aplicação via SMUCommands individuais com tratamento seguro por comando
                 var applyMethod = cmdType?.GetMethod("applySettings", BindingFlags.Public | BindingFlags.Static);
                 if (applyMethod != null)
                 {
-                    bool r1 = (bool)(applyMethod.Invoke(null, new object[] { "tctl-temp", (uint)cfg.ApuTempLimit }) ?? false);
-                    bool r2 = (bool)(applyMethod.Invoke(null, new object[] { "cHTC-temp", (uint)cfg.ApuTempLimit }) ?? false);
-                    bool r3 = (bool)(applyMethod.Invoke(null, new object[] { "stapm-limit", (uint)(cfg.ApuStapmWatts * 1000) }) ?? false);
-                    bool r4 = (bool)(applyMethod.Invoke(null, new object[] { "slow-limit", (uint)(cfg.ApuSlowWatts * 1000) }) ?? false);
-                    bool r5 = (bool)(applyMethod.Invoke(null, new object[] { "fast-limit", (uint)(cfg.ApuFastWatts * 1000) }) ?? false);
-                    smuOk = r1 && r3 && r4 && r5;
+                    bool rTemp = false, rStapm = false, rSlow = false, rFast = false, rApuSlow = false;
+                    try { rTemp = (bool)(applyMethod.Invoke(null, new object[] { "tctl-temp", (uint)cfg.ApuTempLimit }) ?? false); } catch { }
+                    try { rStapm = (bool)(applyMethod.Invoke(null, new object[] { "stapm-limit", (uint)(cfg.ApuStapmWatts * 1000) }) ?? false); } catch { }
+                    try { rSlow = (bool)(applyMethod.Invoke(null, new object[] { "slow-limit", (uint)(cfg.ApuSlowWatts * 1000) }) ?? false); } catch { }
+                    try { rFast = (bool)(applyMethod.Invoke(null, new object[] { "fast-limit", (uint)(cfg.ApuFastWatts * 1000) }) ?? false); } catch { }
+                    try { rApuSlow = (bool)(applyMethod.Invoke(null, new object[] { "apu-slow-limit", (uint)(cfg.ApuSlowWatts * 1000) }) ?? false); } catch { }
+                    try { applyMethod.Invoke(null, new object[] { "cHTC-temp", (uint)cfg.ApuTempLimit }); } catch { }
+
+                    logDetails.Add($"tctl={rTemp}({cfg.ApuTempLimit}C)");
+                    logDetails.Add($"stapm={rStapm}({cfg.ApuStapmWatts}W)");
+                    logDetails.Add($"slow={rSlow}({cfg.ApuSlowWatts}W)");
+                    logDetails.Add($"fast={rFast}({cfg.ApuFastWatts}W)");
+                    logDetails.Add($"apuSlow={rApuSlow}");
+
+                    smuOk = rTemp && rStapm && rSlow && rFast;
+                }
+
+                // 2. Aplicação complementar via RyzenAdj_To_UXTU.Translate (motor nativo UXTU com fallback para overlays de energia)
+                try
+                {
+                    var translateType = asm.GetType("Universal_x86_Tuning_Utility.Scripts.RyzenAdj_To_UXTU");
+                    var translateMethod = translateType?.GetMethod("Translate", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                    if (translateMethod != null)
+                    {
+                        string commandStr = $"--UXTUSR=False-False-0,05-0-False --tctl-temp={cfg.ApuTempLimit} --cHTC-temp={cfg.ApuTempLimit} --stapm-limit={cfg.ApuStapmWatts * 1000} --fast-limit={cfg.ApuFastWatts * 1000} --slow-limit={cfg.ApuSlowWatts * 1000} --apu-slow-limit={cfg.ApuSlowWatts * 1000} ";
+                        translateMethod.Invoke(null, new object[] { commandStr, false, false, "Custom", false });
+                        logDetails.Add("translate=OK");
+                        smuOk = true;
+                    }
+                }
+                catch (Exception exTr)
+                {
+                    logDetails.Add($"translateErr={exTr.InnerException?.Message ?? exTr.Message}");
                 }
             }
         }
         catch (Exception ex)
         {
             smuError = ex.InnerException?.Message ?? ex.Message;
+            logDetails.Add($"fatalErr={smuError}");
         }
         finally
         {
             try { Environment.CurrentDirectory = prevDir; } catch { }
         }
 
-        // Sincroniza também o preset "Teste" no apuPresets.json do UXTU
+        // 3. Sincroniza todos os presets no apuPresets.json do UXTU
         try
         {
             string presetsPath = Path.Combine(UxtuDir, "apuPresets.json");
@@ -856,6 +884,34 @@ public partial class MainWindow
                     File.WriteAllText(presetsPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
                 }
             }
+        }
+        catch { }
+
+        // 4. Sincroniza o user.config do UXTU (AppData local) para auto-reaplicação contínua de backup
+        try
+        {
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string uxtuConfigDir = Path.Combine(localAppData, "JamesCJ60");
+            if (Directory.Exists(uxtuConfigDir))
+            {
+                foreach (var cfgFile in Directory.GetFiles(uxtuConfigDir, "user.config", SearchOption.AllDirectories))
+                {
+                    string xml = File.ReadAllText(cfgFile);
+                    string targetCmd = $"--UXTUSR=False-False-0,05-0-False --tctl-temp={cfg.ApuTempLimit} --cHTC-temp={cfg.ApuTempLimit} --stapm-limit={cfg.ApuStapmWatts * 1000} --fast-limit={cfg.ApuFastWatts * 1000} --slow-limit={cfg.ApuSlowWatts * 1000} ";
+                    string patched = Regex.Replace(xml, @"(<setting name=""CommandString"" serializeAs=""String"">\s*<value>)[^<]*(</value>)", $"${{1}}{targetCmd}${{2}}");
+                    patched = Regex.Replace(patched, @"(<setting name=""AutoReapply"" serializeAs=""String"">\s*<value>)[^<]*(</value>)", "${1}True${2}");
+                    patched = Regex.Replace(patched, @"(<setting name=""AutoReapplyTime"" serializeAs=""String"">\s*<value>)[^<]*(</value>)", $"${{1}}{cfg.AutoReapplySeconds}${{2}}");
+                    if (patched != xml) File.WriteAllText(cfgFile, patched);
+                }
+            }
+        }
+        catch { }
+
+        // 5. Registra no tuning.log para auditoria transparente
+        try
+        {
+            string logLine = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] CPU SMU: {string.Join(" | ", logDetails)} (smuOk={smuOk})\n";
+            File.AppendAllText(logPath, logLine);
         }
         catch { }
 
@@ -1033,6 +1089,20 @@ public partial class MainWindow
     /// <summary>Chamado pelo timer global de 1s: atualiza os sensores do G15, reaplica SMU no intervalo configurado (como no UXTU) e mantém a curva de ventoinhas ativa.</summary>
     private void TickG15()
     {
+        // Verifica se há pedido externo para encerrar a aplicação
+        try
+        {
+            string exitFlag = Path.Combine(AppSettings.Folder, "exit.flag");
+            if (File.Exists(exitFlag))
+            {
+                File.Delete(exitFlag);
+                _realExit = true;
+                Close();
+                return;
+            }
+        }
+        catch { }
+
         int intervalSecSmu = Math.Clamp(_settings.G15.AutoReapplySeconds, 3, 60);
         if (!_smuApplying && _settings.G15.AutoReapplyCpu && (DateTime.UtcNow - _lastSmuReapply).TotalSeconds >= intervalSecSmu)
         {
