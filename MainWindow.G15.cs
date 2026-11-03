@@ -775,10 +775,13 @@ public partial class MainWindow
 
         try
         {
-            if (File.Exists(UxtuDllPath))
+            bool dllFound = File.Exists(UxtuDllPath);
+            logDetails.Add($"dllFound={dllFound}");
+            if (dllFound)
             {
                 Environment.CurrentDirectory = UxtuDir;
                 var asm = Assembly.LoadFrom(UxtuDllPath);
+                logDetails.Add($"asm={asm != null}");
 
                 // CRÍTICO: UXTU.dll busca "Assets\AMD\PawnIO\RyzenSMU.bin" concatenando Settings.Default.Path.
                 // Sem definir Settings.Default.Path = UxtuDir, o PawnIO lança FileNotFoundException silenciosamente!
@@ -807,8 +810,10 @@ public partial class MainWindow
                 addrType?.GetMethod("setAddresses", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
                     ?.Invoke(null, null);
 
+                logDetails.Add($"cmdType={cmdType != null}");
                 // 1. Aplicação via SMUCommands individuais com tratamento seguro por comando
                 var applyMethod = cmdType?.GetMethod("applySettings", BindingFlags.Public | BindingFlags.Static);
+                logDetails.Add($"applyMethod={applyMethod != null}");
                 if (applyMethod != null)
                 {
                     bool rTemp = false, rStapm = false, rSlow = false, rFast = false, rApuSlow = false;
@@ -832,7 +837,9 @@ public partial class MainWindow
                 try
                 {
                     var translateType = asm.GetType("Universal_x86_Tuning_Utility.Scripts.RyzenAdj_To_UXTU");
+                    logDetails.Add($"translateType={translateType != null}");
                     var translateMethod = translateType?.GetMethod("Translate", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                    logDetails.Add($"translateMethod={translateMethod != null}");
                     if (translateMethod != null)
                     {
                         string commandStr = $"--UXTUSR=False-False-0,05-0-False --tctl-temp={cfg.ApuTempLimit} --cHTC-temp={cfg.ApuTempLimit} --stapm-limit={cfg.ApuStapmWatts * 1000} --fast-limit={cfg.ApuFastWatts * 1000} --slow-limit={cfg.ApuSlowWatts * 1000} --apu-slow-limit={cfg.ApuSlowWatts * 1000} ";
