@@ -836,17 +836,23 @@ public partial class MainWindow
             if (File.Exists(presetsPath))
             {
                 var root = JsonNode.Parse(File.ReadAllText(presetsPath))?.AsObject();
-                if (root != null && root["Teste"] is JsonObject teste)
+                if (root != null)
                 {
-                    teste["apuTemp"] = cfg.ApuTempLimit;
-                    teste["apuSTAPMPow"] = cfg.ApuStapmWatts;
-                    teste["apuSlowPow"] = cfg.ApuSlowWatts;
-                    teste["apuFastPow"] = cfg.ApuFastWatts;
-                    teste["isApuTemp"] = true;
-                    teste["isApuSTAPMPow"] = true;
-                    teste["isApuSlowPow"] = true;
-                    teste["isApuFastPow"] = true;
-                    teste["commandValue"] = $"--UXTUSR=False-False-0,05-0-False --tctl-temp={cfg.ApuTempLimit} --cHTC-temp={cfg.ApuTempLimit} --stapm-limit={cfg.ApuStapmWatts * 1000} --fast-limit={cfg.ApuFastWatts * 1000} --slow-limit={cfg.ApuSlowWatts * 1000} ";
+                    foreach (var kvp in root)
+                    {
+                        if (kvp.Value is JsonObject p)
+                        {
+                            p["apuTemp"] = cfg.ApuTempLimit;
+                            p["apuSTAPMPow"] = cfg.ApuStapmWatts;
+                            p["apuSlowPow"] = cfg.ApuSlowWatts;
+                            p["apuFastPow"] = cfg.ApuFastWatts;
+                            p["isApuTemp"] = true;
+                            p["isApuSTAPMPow"] = true;
+                            p["isApuSlowPow"] = true;
+                            p["isApuFastPow"] = true;
+                            p["commandValue"] = $"--UXTUSR=False-False-0,05-0-False --tctl-temp={cfg.ApuTempLimit} --cHTC-temp={cfg.ApuTempLimit} --stapm-limit={cfg.ApuStapmWatts * 1000} --fast-limit={cfg.ApuFastWatts * 1000} --slow-limit={cfg.ApuSlowWatts * 1000} ";
+                        }
+                    }
                     File.WriteAllText(presetsPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
                 }
             }
@@ -1089,16 +1095,57 @@ public partial class MainWindow
                 int cpuTemp = Math.Max(cliCpuTemp, lhmCpuTemp);
                 int gpuTemp = Math.Max(cliGpuTemp, lhmGpuTemp);
 
-                if (!wantGMode && !gmodeOn && (cpuTemp > 0 || gpuTemp > 0))
+                int maxTemp = Math.Max(cpuTemp, gpuTemp);
+                if (!wantGMode)
                 {
-                    int maxTemp = Math.Max(cpuTemp, gpuTemp);
-                    int targetBoost = EvaluateAdaptiveBoost(maxTemp);
-                    if (Math.Abs(targetBoost - lastBoost) >= 3 || Math.Abs(targetBoost - cpuBoost) >= 5 || Math.Abs(targetBoost - gpuBoost) >= 5)
+                    // No Modo Dinâmico:
+                    // O firmware da Dell trava as ventoinhas em ~4200 RPM em modo manual (setpower=0).
+                    // Para atingir 5000-5200 RPM em jogos pesados sem exigir intervenção do usuário:
+                    // Se a temperatura do chip atingir 74°C (ou GPU >= 72°C ou CPU >= 78°C), engata o G-Mode no hardware!
+                    if (maxTemp >= 74 || gpuTemp >= 72 || cpuTemp >= 78)
                     {
-                        RunCli(AlienFanCliPath, $"setpower=0 setfans={targetBoost},{targetBoost}", AlienToolsDir);
-                        cpuBoost = targetBoost;
-                        gpuBoost = targetBoost;
-                        lastBoost = targetBoost;
+                        if (!gmodeOn)
+                        {
+                            RunCli(AlienFanCliPath, "setgmode=1", AlienToolsDir);
+                            gmodeOn = true;
+                            powerMode = "Level 171 (Turbo Dinâmico)";
+                        }
+                    }
+                    else if (maxTemp <= 64 && gpuTemp <= 62 && cpuTemp <= 65)
+                    {
+                        if (gmodeOn)
+                        {
+                            RunCli(AlienFanCliPath, "setgmode=0 setpower=0", AlienToolsDir);
+                            gmodeOn = false;
+                        }
+                        int targetBoost = EvaluateAdaptiveBoost(maxTemp);
+                        if (Math.Abs(targetBoost - lastBoost) >= 3 || Math.Abs(targetBoost - cpuBoost) >= 5 || Math.Abs(targetBoost - gpuBoost) >= 5)
+                        {
+                            RunCli(AlienFanCliPath, $"setpower=0 setfans={targetBoost},{targetBoost}", AlienToolsDir);
+                            cpuBoost = targetBoost;
+                            gpuBoost = targetBoost;
+                            lastBoost = targetBoost;
+                        }
+                    }
+                    else if (!gmodeOn)
+                    {
+                        int targetBoost = EvaluateAdaptiveBoost(maxTemp);
+                        if (Math.Abs(targetBoost - lastBoost) >= 3 || Math.Abs(targetBoost - cpuBoost) >= 5 || Math.Abs(targetBoost - gpuBoost) >= 5)
+                        {
+                            RunCli(AlienFanCliPath, $"setpower=0 setfans={targetBoost},{targetBoost}", AlienToolsDir);
+                            cpuBoost = targetBoost;
+                            gpuBoost = targetBoost;
+                            lastBoost = targetBoost;
+                        }
+                    }
+                }
+                else
+                {
+                    // G-Mode travado pelo usuário em 100%
+                    if (!gmodeOn)
+                    {
+                        RunCli(AlienFanCliPath, "setgmode=1", AlienToolsDir);
+                        gmodeOn = true;
                     }
                 }
 
@@ -1107,14 +1154,19 @@ public partial class MainWindow
 
             _lastAppliedBoost = data.lastBoost;
 
-            // Caso o firmware da placa-mãe tenha alternado o G-Mode diretamente pelo hardware, sincroniza o botão na UI
-            if (data.gmodeOn != _settings.G15.GModeEnabled)
+            // No Modo Dinâmico, exibe o status visual real sem sobrescrever a preferência do usuário
+            if (G15LivePowerMode != null)
             {
-                _settings.G15.GModeEnabled = data.gmodeOn;
-                _g15UiInitializing = true;
-                if (RbG15FanAdaptive != null) RbG15FanAdaptive.IsChecked = !data.gmodeOn;
-                if (RbG15FanGMode != null) RbG15FanGMode.IsChecked = data.gmodeOn;
-                _g15UiInitializing = false;
+                if (_settings.G15.GModeEnabled)
+                {
+                    G15LivePowerMode.Text = "G-MODE · FIXO";
+                    G15LivePowerSub.Text = "100% Força Bruta (~5200 RPM)";
+                }
+                else
+                {
+                    G15LivePowerMode.Text = data.gmodeOn ? "DINÂMICO (TURBO 100%)" : "DINÂMICO · ADAPTATIVO";
+                    G15LivePowerSub.Text = data.gmodeOn ? "Disparo automático (~5200 RPM)" : "Silencioso / Curva suave";
+                }
             }
 
             if (data.cpuRpm >= 0 || data.cpuTemp > 0)
@@ -1130,10 +1182,6 @@ public partial class MainWindow
                 G15LiveGpuBoost.Text = data.gpuBoost >= 0 ? $"Boost ativo: {data.gpuBoost}%" : "Boost ativo: —%";
             }
 
-            G15LivePowerMode.Text = data.gmodeOn ? "G-MODE · 100%" : "DINÂMICO · TURBO";
-            G15LivePowerSub.Text = string.IsNullOrEmpty(data.powerMode)
-                ? (data.gmodeOn ? "Level 171 (Força Bruta)" : "Turbinado · 100% aos 74°C")
-                : data.powerMode;
 
             if (GpuAbLiveTemp != null && data.gpuTemp > 0)
             {
