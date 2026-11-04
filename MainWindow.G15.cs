@@ -765,6 +765,76 @@ public partial class MainWindow
         G15CpuStatus.Text = "Preset frio original carregado (88 °C · 29W STAPM · 29W Slow · 32W Fast · Reaplicação 15s). Clique em APLICAR LIMITES CPU.";
     }
 
+    private static bool _assemblyResolverRegistered;
+    private static void EnsureAssemblyResolver()
+    {
+        if (_assemblyResolverRegistered) return;
+        _assemblyResolverRegistered = true;
+
+        try
+        {
+            System.Runtime.Loader.AssemblyLoadContext.Default.Resolving += (ctx, asmName) =>
+            {
+                try
+                {
+                    string name = asmName.Name ?? "";
+                    if (string.IsNullOrEmpty(name)) return null;
+
+                    string[] candidateDirs = new[]
+                    {
+                        UxtuDir,
+                        Path.Combine(UxtuDir, "runtimes", "win-x64", "lib", "net10.0"),
+                        Path.Combine(UxtuDir, "runtimes", "win", "lib", "net10.0"),
+                        Path.Combine(UxtuDir, "runtimes", "win-x64", "native")
+                    };
+
+                    foreach (var dir in candidateDirs)
+                    {
+                        if (!Directory.Exists(dir)) continue;
+                        string candidate = Path.Combine(dir, name + ".dll");
+                        if (File.Exists(candidate))
+                        {
+                            return ctx.LoadFromAssemblyPath(candidate);
+                        }
+                    }
+                }
+                catch { }
+                return null;
+            };
+
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
+            {
+                try
+                {
+                    var an = new AssemblyName(args.Name);
+                    string name = an.Name ?? "";
+                    if (string.IsNullOrEmpty(name)) return null;
+
+                    string[] candidateDirs = new[]
+                    {
+                        UxtuDir,
+                        Path.Combine(UxtuDir, "runtimes", "win-x64", "lib", "net10.0"),
+                        Path.Combine(UxtuDir, "runtimes", "win", "lib", "net10.0"),
+                        Path.Combine(UxtuDir, "runtimes", "win-x64", "native")
+                    };
+
+                    foreach (var dir in candidateDirs)
+                    {
+                        if (!Directory.Exists(dir)) continue;
+                        string candidate = Path.Combine(dir, name + ".dll");
+                        if (File.Exists(candidate))
+                        {
+                            return Assembly.LoadFrom(candidate);
+                        }
+                    }
+                }
+                catch { }
+                return null;
+            };
+        }
+        catch { }
+    }
+
     private static string ApplyG15CpuLimitsInternal(G15Settings cfg)
     {
         bool smuOk = false;
@@ -775,6 +845,7 @@ public partial class MainWindow
 
         try
         {
+            EnsureAssemblyResolver();
             bool dllFound = File.Exists(UxtuDllPath);
             logDetails.Add($"dllFound={dllFound}");
             if (dllFound)
@@ -809,6 +880,17 @@ public partial class MainWindow
 
                 addrType?.GetMethod("setAddresses", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
                     ?.Invoke(null, null);
+
+                // Garante que o PawnIO foi inicializado
+                try
+                {
+                    var ryzenAccessField = cmdType?.GetField("RyzenAccess", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                    var ryzenAccessInst = ryzenAccessField?.GetValue(null);
+                    var smuClassType = asm.GetType("RyzenSmu.Smu");
+                    smuClassType?.GetMethod("EnsureInitialised", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                        ?.Invoke(ryzenAccessInst, null);
+                }
+                catch { }
 
                 logDetails.Add($"cmdType={cmdType != null}");
                 // 1. Aplicação via SMUCommands individuais com tratamento seguro por comando
